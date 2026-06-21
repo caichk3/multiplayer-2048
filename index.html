@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>同学小游戏厅</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell" aria-label="同学小游戏厅">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Class Arcade</p>
+          <h1>同学小游戏厅</h1>
+        </div>
+
+        <div class="connection-pill" id="connection-status">正在连接</div>
+      </section>
+
+      <section class="account-panel" aria-label="账号">
+        <div class="account-intro">
+          <p class="eyebrow">账号</p>
+          <h2 id="account-title">登录后累计积分</h2>
+          <p id="account-status">昵称加口令即可进入。</p>
+        </div>
+
+        <form class="account-form" id="account-form">
+          <div class="field">
+            <label for="account-name">昵称</label>
+            <input id="account-name" maxlength="14" autocomplete="username" placeholder="例如 小明" />
+          </div>
+
+          <div class="field">
+            <label for="account-pin">口令</label>
+            <input
+              id="account-pin"
+              type="password"
+              maxlength="20"
+              autocomplete="current-password"
+              placeholder="至少 4 位"
+            />
+          </div>
+
+          <div class="account-actions">
+            <button id="login-button" type="submit">登录</button>
+            <button id="register-button" class="secondary-button" type="button">注册</button>
+          </div>
+        </form>
+
+        <div class="profile-strip" id="profile-strip" hidden>
+          <div>
+            <span>玩家</span>
+            <strong id="profile-name">--</strong>
+          </div>
+          <div>
+            <span>等级</span>
+            <strong id="profile-level">1</strong>
+          </div>
+          <div>
+            <span>总积分</span>
+            <strong id="profile-points">0</strong>
+          </div>
+          <div>
+            <span>2048 最高</span>
+            <strong id="profile-best">0</strong>
+          </div>
+          <div>
+            <span>扫雷胜场</span>
+            <strong id="profile-minesweeper-wins">0</strong>
+          </div>
+          <button id="logout-button" class="ghost-button" type="button">退出</button>
+        </div>
+      </section>
+
+      <section class="catalog-panel" aria-label="小游戏">
+        <div class="catalog-head">
+          <div>
+            <p class="eyebrow">小游戏</p>
+            <h2>游戏列表</h2>
+          </div>
+          <span id="catalog-count">2 个可玩</span>
+        </div>
+
+        <div class="game-catalog">
+          <button class="game-card is-active" type="button" data-game="2048">
+            <span class="game-badge">可玩</span>
+            <h3>2048 联机竞速</h3>
+            <p>房间对战 · 实时排行 · 平台积分</p>
+          </button>
+          <button class="game-card" type="button" data-game="minesweeper3d">
+            <span class="game-badge">可玩</span>
+            <h3>3D 扫雷</h3>
+            <p>随机形状 · 难度可调 · 26 邻域判断</p>
+          </button>
+        </div>
+      </section>
+
+      <section class="room-panel" id="room-panel" aria-label="2048 房间">
+        <div class="field game-label">
+          <label>当前游戏</label>
+          <strong>2048 联机竞速</strong>
+        </div>
+
+        <div class="field room-code-field">
+          <label for="room-code">房间号</label>
+          <input id="room-code" maxlength="5" autocomplete="off" placeholder="ABCDE" />
+        </div>
+
+        <div class="room-actions">
+          <button id="create-room-button" type="button">创建房间</button>
+          <button id="join-room-button" class="secondary-button" type="button">加入房间</button>
+        </div>
+
+        <div class="active-room" id="active-room" hidden>
+          <span>当前房间</span>
+          <strong id="active-room-code">-----</strong>
+          <button id="copy-room-button" class="ghost-button" type="button">复制</button>
+        </div>
+      </section>
+
+      <section class="game-layout">
+        <section class="game-panel game-view" id="game-2048" aria-label="2048 棋盘">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">2048</p>
+              <h2>我的棋盘</h2>
+            </div>
+
+            <div class="score-panel" aria-label="分数">
+              <div class="score-box">
+                <span>分数</span>
+                <strong id="score">0</strong>
+              </div>
+              <div class="score-box">
+                <span>最高块</span>
+                <strong id="best-score">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="status-text">先登录账号，再创建或加入房间。</p>
+            <button id="restart-button" type="button">重新开始</button>
+          </div>
+
+          <div class="board-wrap">
+            <div id="board" class="board" aria-label="2048 棋盘"></div>
+
+            <div id="message" class="message is-hidden" role="status" aria-live="polite">
+              <div class="message-panel">
+                <h2 id="message-title">游戏结束</h2>
+                <p id="message-copy">最终分数：0</p>
+                <button id="message-button" type="button">再来一局</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          class="game-panel game-view is-hidden"
+          id="game-minesweeper3d"
+          aria-label="3D 扫雷"
+        >
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">3D Mines</p>
+              <h2>随机形状扫雷</h2>
+            </div>
+
+            <div class="score-panel" aria-label="扫雷状态">
+              <div class="score-box">
+                <span>剩余雷</span>
+                <strong id="mine-remaining">18</strong>
+              </div>
+              <div class="score-box">
+                <span>时间</span>
+                <strong id="mine-time">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="mine-status-text">左键翻开，右键或长按插旗。</p>
+            <div class="mine-controls">
+              <label for="mine-difficulty">难度</label>
+              <select id="mine-difficulty">
+                <option value="easy">入门</option>
+                <option value="normal">标准</option>
+                <option value="hard">困难</option>
+                <option value="expert">专家</option>
+              </select>
+              <button id="mine-restart-button" type="button">重新开局</button>
+            </div>
+          </div>
+
+          <div class="mine-stats">
+            <div>
+              <span>已翻开</span>
+              <strong id="mine-revealed">0</strong>
+            </div>
+            <div>
+              <span>旗子</span>
+              <strong id="mine-flags">0</strong>
+            </div>
+            <div>
+              <span>层数</span>
+              <strong id="mine-layers">3</strong>
+            </div>
+            <div>
+              <span>形状格</span>
+              <strong id="mine-shape-size">0</strong>
+            </div>
+          </div>
+
+          <div class="minefield-wrap">
+            <div id="minefield" class="minefield" aria-label="3D 扫雷棋盘"></div>
+          </div>
+        </section>
+
+        <aside class="leaderboard-panel" aria-label="排行榜">
+          <div class="leaderboard-block">
+            <div class="leaderboard-head">
+              <div>
+                <p class="eyebrow">房间</p>
+                <h2>实时排行</h2>
+              </div>
+              <span id="player-count">0 人</span>
+            </div>
+
+            <ol id="players-list" class="players-list">
+              <li class="empty-state">还没有进入房间</li>
+            </ol>
+          </div>
+
+          <div class="leaderboard-block">
+            <div class="leaderboard-head">
+              <div>
+                <p class="eyebrow">平台</p>
+                <h2>总积分榜</h2>
+              </div>
+              <span id="global-count">0 人</span>
+            </div>
+
+            <ol id="global-list" class="players-list">
+              <li class="empty-state">暂无积分</li>
+            </ol>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
