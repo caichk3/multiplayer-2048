@@ -223,6 +223,73 @@ app.post("/api/games/minesweeper-3d/results", requireAuth, (request, response) =
   });
 });
 
+app.post("/api/games/sokoban/results", requireAuth, (request, response) => {
+  const gameId = String(request.body?.gameId || "").trim();
+  const won = Boolean(request.body?.won);
+  const level = clampInteger(request.body?.level, 0, 9999);
+  const steps = clampInteger(request.body?.steps, 0, 999999);
+  const seconds = clampInteger(request.body?.seconds, 0, 86400);
+  const user = request.user;
+
+  ensureUserShape(user);
+
+  if (!gameId) {
+    response.status(400).json({ ok: false, message: "缺少本局编号" });
+    return;
+  }
+
+  if (user.settledGames.includes(gameId)) {
+    response.json({
+      ok: true,
+      duplicate: true,
+      award: { points: 0, won, level, steps, seconds },
+      profile: getPublicProfile(user),
+      leaderboard: getGlobalLeaderboard(),
+    });
+    return;
+  }
+
+  const award = calculateSokobanAward({ won, level, steps, seconds });
+  const gameStats = user.stats.games.sokoban;
+
+  user.totalPoints += award.points;
+  user.stats.gamesPlayed += 1;
+  user.stats.lastPlayedAt = Date.now();
+  gameStats.plays += 1;
+  gameStats.wins += won ? 1 : 0;
+  gameStats.bestSteps =
+    won && (gameStats.bestSteps === 0 || steps < gameStats.bestSteps)
+      ? steps
+      : gameStats.bestSteps;
+  gameStats.bestTime =
+    won && (gameStats.bestTime === 0 || seconds < gameStats.bestTime)
+      ? seconds
+      : gameStats.bestTime;
+  gameStats.lastLevel = level;
+  gameStats.lastSteps = steps;
+  gameStats.lastPlayedAt = Date.now();
+  user.settledGames.push(gameId);
+  user.settledGames = user.settledGames.slice(-180);
+  user.recentResults.unshift({
+    game: "sokoban",
+    won,
+    level,
+    steps,
+    seconds,
+    points: award.points,
+    playedAt: Date.now(),
+  });
+  user.recentResults = user.recentResults.slice(0, 12);
+  saveStore();
+
+  response.json({
+    ok: true,
+    award,
+    profile: getPublicProfile(user),
+    leaderboard: getGlobalLeaderboard(),
+  });
+});
+
 function loadStore() {
   fs.mkdirSync(dataDirectory, { recursive: true });
 
@@ -271,6 +338,15 @@ function createDefaultStats() {
         lastRevealed: 0,
         lastPlayedAt: null,
       },
+      sokoban: {
+        plays: 0,
+        wins: 0,
+        bestTime: 0,
+        bestSteps: 0,
+        lastLevel: 0,
+        lastSteps: 0,
+        lastPlayedAt: null,
+      },
     },
   };
 }
@@ -289,6 +365,10 @@ function ensureUserShape(user) {
   user.stats.games.minesweeper3d = {
     ...createDefaultStats().games.minesweeper3d,
     ...(user.stats.games.minesweeper3d || {}),
+  };
+  user.stats.games.sokoban = {
+    ...createDefaultStats().games.sokoban,
+    ...(user.stats.games.sokoban || {}),
   };
 }
 
@@ -391,6 +471,7 @@ function getPublicProfile(user) {
   ensureUserShape(user);
   const game2048 = user.stats.games["2048"];
   const minesweeper3d = user.stats.games.minesweeper3d;
+  const sokoban = user.stats.games.sokoban;
 
   return {
     id: user.id,
@@ -414,6 +495,14 @@ function getPublicProfile(user) {
         bestClearCount: minesweeper3d.bestClearCount,
         lastResult: minesweeper3d.lastResult,
         lastRevealed: minesweeper3d.lastRevealed,
+      },
+      sokoban: {
+        plays: sokoban.plays,
+        wins: sokoban.wins,
+        bestTime: sokoban.bestTime,
+        bestSteps: sokoban.bestSteps,
+        lastLevel: sokoban.lastLevel,
+        lastSteps: sokoban.lastSteps,
       },
     },
     recentResults: user.recentResults.slice(0, 6),
@@ -463,6 +552,31 @@ function calculateMinesweeperAward({ won, revealed, totalSafe, flags, seconds })
     revealed,
     totalSafe,
     flags,
+    seconds,
+  };
+}
+
+function calculateSokobanAward({ won, level, steps, seconds }) {
+  if (!won) {
+    return {
+      points: 0,
+      won,
+      level,
+      steps,
+      seconds,
+    };
+  }
+
+  const levelBonus = (level + 1) * 45;
+  const clearBonus = 180;
+  const stepBonus = Math.max(0, 180 - steps * 3);
+  const speedBonus = Math.max(0, 120 - seconds);
+
+  return {
+    points: Math.max(0, levelBonus + clearBonus + stepBonus + speedBonus),
+    won,
+    level,
+    steps,
     seconds,
   };
 }

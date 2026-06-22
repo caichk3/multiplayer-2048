@@ -31,10 +31,12 @@ const profileLevel = document.querySelector("#profile-level");
 const profilePoints = document.querySelector("#profile-points");
 const profileBest = document.querySelector("#profile-best");
 const profileMinesweeperWins = document.querySelector("#profile-minesweeper-wins");
+const profileSokobanWins = document.querySelector("#profile-sokoban-wins");
 const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"));
 const roomPanel = document.querySelector("#room-panel");
 const game2048Panel = document.querySelector("#game-2048");
 const gameMinesweeperPanel = document.querySelector("#game-minesweeper3d");
+const gameSokobanPanel = document.querySelector("#game-sokoban");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
 const mineExpandButton = document.querySelector("#mine-expand-button");
@@ -47,10 +49,18 @@ const mineLayersElement = document.querySelector("#mine-layers");
 const mineShapeSizeElement = document.querySelector("#mine-shape-size");
 const mineModelStage = document.querySelector("#mine-model-stage");
 const mineModelSpace = document.querySelector("#mine-model-space");
+const sokobanBoardElement = document.querySelector("#sokoban-board");
+const sokobanStatusText = document.querySelector("#sokoban-status-text");
+const sokobanRestartButton = document.querySelector("#sokoban-restart-button");
+const sokobanLevelSelect = document.querySelector("#sokoban-level");
+const sokobanStepsElement = document.querySelector("#sokoban-steps");
+const sokobanTimeElement = document.querySelector("#sokoban-time");
+const sokobanPadButtons = Array.from(document.querySelectorAll("[data-sokoban-move]"));
 
 const socket = io();
 const GAME_2048 = "2048";
 const GAME_MINESWEEPER = "minesweeper3d";
+const GAME_SOKOBAN = "sokoban";
 const size = 4;
 const totalCells = size * size;
 const bestKey = "web2-multiplayer-2048-best-score";
@@ -58,6 +68,8 @@ const tokenKey = "class-arcade-token";
 const nameKey = "class-arcade-name";
 const currentGameKey = "class-arcade-current-game";
 const mineDifficultyKey = "class-arcade-minesweeper-difficulty";
+const sokobanLevelKey = "class-arcade-sokoban-level";
+const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const mineDifficulties = {
   easy: {
     label: "入门",
@@ -92,6 +104,63 @@ const mineDifficulties = {
     mines: 52,
   },
 };
+const sokobanLevels = [
+  {
+    name: "仓库门口",
+    map: [
+      "########",
+      "#  .   #",
+      "#  $   #",
+      "#  @   #",
+      "#      #",
+      "########",
+    ],
+  },
+  {
+    name: "双箱练习",
+    map: [
+      "########",
+      "#  ..  #",
+      "#  $$  #",
+      "#  @   #",
+      "#      #",
+      "########",
+    ],
+  },
+  {
+    name: "绕墙",
+    map: [
+      "#########",
+      "#   .   #",
+      "# # $ # #",
+      "#   @   #",
+      "#   . $ #",
+      "#########",
+    ],
+  },
+  {
+    name: "小仓库",
+    map: [
+      "#########",
+      "# .  .  #",
+      "# $$ #  #",
+      "#  @ #  #",
+      "#       #",
+      "#########",
+    ],
+  },
+  {
+    name: "转角",
+    map: [
+      "##########",
+      "#   .    #",
+      "# # $$ # #",
+      "# #  @ # #",
+      "#    .   #",
+      "##########",
+    ],
+  },
+];
 const text = {
   ready: "已经进入房间，开始挑战吧。本局结束或重新开始时会结算平台积分。",
   waiting: "先登录账号，再创建或加入房间。",
@@ -103,6 +172,8 @@ const text = {
   minesReady: "拖动旋转模型，点立方体翻开，右键或长按插旗。",
   minesWin: "3D 扫雷完成，积分已结算。",
   minesLose: "踩到雷了，积分已结算。",
+  sokobanReady: "方向键、WASD 或滑动控制移动。",
+  sokobanWin: "推箱子完成，积分已结算。",
 };
 
 let currentGame = localStorage.getItem(currentGameKey) || GAME_2048;
@@ -148,9 +219,30 @@ let mineModelDragY = 0;
 let mineModelDragDistance = 0;
 let mineModelExpanded = false;
 let mineModelRotationFrameId = null;
+let mineLightMode = mineLightModeQuery.matches;
+let sokobanLevelIndex = Number(localStorage.getItem(sokobanLevelKey)) || 0;
+let sokobanWalls = [];
+let sokobanTargets = new Set();
+let sokobanBoxes = new Set();
+let sokobanPlayer = { row: 0, column: 0 };
+let sokobanRows = 0;
+let sokobanCols = 0;
+let sokobanSteps = 0;
+let sokobanStartedAt = 0;
+let sokobanSeconds = 0;
+let sokobanTimerId = null;
+let sokobanGameId = createGameId();
+let sokobanWon = false;
+let sokobanSettled = false;
+let sokobanTouchStartX = 0;
+let sokobanTouchStartY = 0;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
+}
+
+if (!sokobanLevels[sokobanLevelIndex]) {
+  sokobanLevelIndex = 0;
 }
 
 function createGameId() {
@@ -209,8 +301,10 @@ function setupBoardMarkup() {
 
 function setupMinesweeperMarkup() {
   mineModelSpace.innerHTML = "";
+  mineModelSpace.dataset.renderMode = mineLightMode ? "light" : "full";
   applyMineModelRotation();
   renderMineExpandButton();
+  mineModelStage.classList.toggle("is-light-mode", mineLightMode);
 }
 
 function hasAccount() {
@@ -278,6 +372,7 @@ function renderAccount(nextProfile) {
     createRoomButton.disabled = true;
     joinRoomButton.disabled = true;
     profileMinesweeperWins.textContent = "0";
+    profileSokobanWins.textContent = "0";
     updateRoomActions();
     return;
   }
@@ -285,12 +380,13 @@ function renderAccount(nextProfile) {
   localStorage.setItem(nameKey, profile.name);
   accountNameInput.value = profile.name;
   accountTitle.textContent = `欢迎，${profile.name}`;
-  accountStatus.textContent = "账号已登录，2048 和扫雷的成绩都会结算为平台积分。";
+  accountStatus.textContent = "账号已登录，小游戏成绩都会结算为平台积分。";
   profileName.textContent = profile.name;
   profileLevel.textContent = String(profile.level);
   profilePoints.textContent = String(profile.totalPoints);
   profileBest.textContent = String(profile.stats.game2048.highScore);
   profileMinesweeperWins.textContent = String(profile.stats.minesweeper3d.wins);
+  profileSokobanWins.textContent = String(profile.stats.sokoban?.wins || 0);
   profileStrip.hidden = false;
   accountForm.hidden = true;
   createRoomButton.disabled = false;
@@ -300,9 +396,12 @@ function renderAccount(nextProfile) {
 
 function updateRoomActions() {
   const show2048 = currentGame === GAME_2048;
+  const showMinesweeper = currentGame === GAME_MINESWEEPER;
+  const showSokoban = currentGame === GAME_SOKOBAN;
   roomPanel.hidden = !show2048;
   game2048Panel.classList.toggle("is-hidden", !show2048);
-  gameMinesweeperPanel.classList.toggle("is-hidden", show2048);
+  gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
+  gameSokobanPanel.classList.toggle("is-hidden", !showSokoban);
 
   gameCards.forEach((card) => {
     card.classList.toggle("is-active", card.dataset.game === currentGame);
@@ -310,12 +409,14 @@ function updateRoomActions() {
 
   if (show2048) {
     statusText.textContent = currentRoomCode ? text.ready : hasAccount() ? "可以创建房间，或输入房间号加入同学。" : text.waiting;
-  } else {
+  } else if (showMinesweeper) {
     mineStatusText.textContent = mineGameOver
       ? mineGameWon
         ? text.minesWin
         : text.minesLose
       : getMineReadyText();
+  } else if (showSokoban) {
+    sokobanStatusText.textContent = sokobanWon ? text.sokobanWin : text.sokobanReady;
   }
 }
 
@@ -325,7 +426,7 @@ function getMineReadyText() {
 }
 
 function setActiveGame(gameId, options = {}) {
-  currentGame = [GAME_2048, GAME_MINESWEEPER].includes(gameId)
+  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_SOKOBAN].includes(gameId)
     ? gameId
     : GAME_2048;
 
@@ -681,21 +782,31 @@ function getDirectionFromKey(key) {
 }
 
 function handleKeyDown(event) {
+  if (currentGame === GAME_SOKOBAN) {
+    const direction = getSokobanDirection(event.key);
+
+    if (!direction) {
+      return;
+    }
+
+    event.preventDefault();
+    moveSokoban(direction);
+    return;
+  }
+
   if (currentGame !== GAME_2048) {
     return;
   }
 
   const direction = getDirectionFromKey(event.key);
 
-  if (!direction) {
-    return;
+  if (direction) {
+    event.preventDefault();
+    if (!gameFinished) {
+      message.classList.add("is-hidden");
+    }
+    move2048(direction);
   }
-
-  event.preventDefault();
-  if (!gameFinished) {
-    message.classList.add("is-hidden");
-  }
-  move2048(direction);
 }
 
 function handleTouchStart(event) {
@@ -730,6 +841,37 @@ function handleTouchEnd(event) {
     move2048(deltaX > 0 ? "right" : "left");
   } else {
     move2048(deltaY > 0 ? "down" : "up");
+  }
+}
+
+function handleSokobanTouchStart(event) {
+  if (currentGame !== GAME_SOKOBAN) {
+    return;
+  }
+
+  const touch = event.changedTouches[0];
+  sokobanTouchStartX = touch.clientX;
+  sokobanTouchStartY = touch.clientY;
+}
+
+function handleSokobanTouchEnd(event) {
+  if (currentGame !== GAME_SOKOBAN) {
+    return;
+  }
+
+  const touch = event.changedTouches[0];
+  const deltaX = touch.clientX - sokobanTouchStartX;
+  const deltaY = touch.clientY - sokobanTouchStartY;
+  const minimumSwipe = 24;
+
+  if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < minimumSwipe) {
+    return;
+  }
+
+  if (Math.abs(deltaX) > Math.abs(deltaY)) {
+    moveSokoban({ row: 0, column: deltaX > 0 ? 1 : -1 });
+  } else {
+    moveSokoban({ row: deltaY > 0 ? 1 : -1, column: 0 });
   }
 }
 
@@ -890,7 +1032,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 推箱子 ${player.stats.sokoban?.wins || 0} 胜`;
 
     info.append(name, meta);
 
@@ -905,6 +1047,258 @@ function renderGlobalLeaderboard(players) {
     item.append(rank, info, scoreBox);
     globalList.appendChild(item);
   });
+}
+
+function sokobanKey(row, column) {
+  return `${row}-${column}`;
+}
+
+function parseSokobanKey(key) {
+  const [row, column] = key.split("-").map(Number);
+  return { row, column };
+}
+
+function setupSokobanLevels() {
+  sokobanLevelSelect.innerHTML = "";
+
+  sokobanLevels.forEach((level, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = `${index + 1}. ${level.name}`;
+    sokobanLevelSelect.appendChild(option);
+  });
+
+  sokobanLevelSelect.value = String(sokobanLevelIndex);
+}
+
+function normalizeSokobanMap(map) {
+  const cols = Math.max(...map.map((line) => line.length));
+  return map.map((line) => line.padEnd(cols, " "));
+}
+
+function startSokobanGame(options = {}) {
+  if (options.settlePrevious !== false) {
+    settleSokobanGame("restart");
+  }
+
+  const level = sokobanLevels[sokobanLevelIndex] || sokobanLevels[0];
+  const map = normalizeSokobanMap(level.map);
+  sokobanRows = map.length;
+  sokobanCols = map[0].length;
+  sokobanWalls = [];
+  sokobanTargets = new Set();
+  sokobanBoxes = new Set();
+  sokobanPlayer = { row: 0, column: 0 };
+  sokobanSteps = 0;
+  sokobanStartedAt = 0;
+  sokobanSeconds = 0;
+  sokobanGameId = createGameId();
+  sokobanWon = false;
+  sokobanSettled = false;
+  stopSokobanTimer();
+
+  map.forEach((line, row) => {
+    [...line].forEach((tile, column) => {
+      if (tile === "#") {
+        sokobanWalls.push(sokobanKey(row, column));
+      }
+
+      if (tile === "." || tile === "*" || tile === "+") {
+        sokobanTargets.add(sokobanKey(row, column));
+      }
+
+      if (tile === "$" || tile === "*") {
+        sokobanBoxes.add(sokobanKey(row, column));
+      }
+
+      if (tile === "@" || tile === "+") {
+        sokobanPlayer = { row, column };
+      }
+    });
+  });
+
+  sokobanStatusText.textContent = text.sokobanReady;
+  renderSokobanBoard();
+}
+
+function renderSokobanBoard() {
+  const wallSet = new Set(sokobanWalls);
+  sokobanBoardElement.innerHTML = "";
+  sokobanBoardElement.style.setProperty("--sokoban-cols", String(sokobanCols));
+  sokobanBoardElement.style.setProperty("--sokoban-rows", String(sokobanRows));
+  sokobanBoardElement.style.setProperty("--sokoban-board-width", `${Math.min(560, sokobanCols * 54)}px`);
+  sokobanBoardElement.style.setProperty(
+    "--sokoban-mobile-board-width",
+    `${Math.min(420, sokobanCols * 42)}px`,
+  );
+  sokobanBoardElement.style.setProperty(
+    "--sokoban-small-board-width",
+    `${Math.min(360, sokobanCols * 36)}px`,
+  );
+
+  for (let row = 0; row < sokobanRows; row += 1) {
+    for (let column = 0; column < sokobanCols; column += 1) {
+      const key = sokobanKey(row, column);
+      const tile = document.createElement("div");
+      tile.className = "sokoban-tile";
+      tile.dataset.row = String(row);
+      tile.dataset.column = String(column);
+
+      if (wallSet.has(key)) {
+        tile.classList.add("is-wall");
+      }
+
+      if (sokobanTargets.has(key)) {
+        tile.classList.add("is-target");
+      }
+
+      if (sokobanBoxes.has(key)) {
+        tile.classList.add("has-box");
+
+        if (sokobanTargets.has(key)) {
+          tile.classList.add("is-box-set");
+        }
+      }
+
+      if (sokobanPlayer.row === row && sokobanPlayer.column === column) {
+        tile.classList.add("has-player");
+      }
+
+      sokobanBoardElement.appendChild(tile);
+    }
+  }
+
+  sokobanStepsElement.textContent = String(sokobanSteps);
+  sokobanTimeElement.textContent = String(sokobanSeconds);
+}
+
+function startSokobanTimer() {
+  if (sokobanTimerId) {
+    return;
+  }
+
+  if (!sokobanStartedAt) {
+    sokobanStartedAt = Date.now();
+  }
+
+  sokobanTimerId = window.setInterval(() => {
+    sokobanSeconds = Math.floor((Date.now() - sokobanStartedAt) / 1000);
+    sokobanTimeElement.textContent = String(sokobanSeconds);
+  }, 1000);
+}
+
+function stopSokobanTimer() {
+  if (sokobanTimerId) {
+    window.clearInterval(sokobanTimerId);
+    sokobanTimerId = null;
+  }
+}
+
+function getSokobanDirection(key) {
+  const directions = {
+    ArrowLeft: { row: 0, column: -1 },
+    a: { row: 0, column: -1 },
+    A: { row: 0, column: -1 },
+    ArrowRight: { row: 0, column: 1 },
+    d: { row: 0, column: 1 },
+    D: { row: 0, column: 1 },
+    ArrowUp: { row: -1, column: 0 },
+    w: { row: -1, column: 0 },
+    W: { row: -1, column: 0 },
+    ArrowDown: { row: 1, column: 0 },
+    s: { row: 1, column: 0 },
+    S: { row: 1, column: 0 },
+  };
+
+  return directions[key] || null;
+}
+
+function moveSokoban(delta) {
+  if (!delta || sokobanWon || currentGame !== GAME_SOKOBAN) {
+    return;
+  }
+
+  const wallSet = new Set(sokobanWalls);
+  const next = {
+    row: sokobanPlayer.row + delta.row,
+    column: sokobanPlayer.column + delta.column,
+  };
+  const nextKey = sokobanKey(next.row, next.column);
+
+  if (!isSokobanInBounds(next.row, next.column) || wallSet.has(nextKey)) {
+    return;
+  }
+
+  const boxes = new Set(sokobanBoxes);
+
+  if (boxes.has(nextKey)) {
+    const boxNext = {
+      row: next.row + delta.row,
+      column: next.column + delta.column,
+    };
+    const boxNextKey = sokobanKey(boxNext.row, boxNext.column);
+
+    if (!isSokobanInBounds(boxNext.row, boxNext.column) || wallSet.has(boxNextKey) || boxes.has(boxNextKey)) {
+      return;
+    }
+
+    boxes.delete(nextKey);
+    boxes.add(boxNextKey);
+    sokobanBoxes = boxes;
+  }
+
+  startSokobanTimer();
+  sokobanPlayer = next;
+  sokobanSteps += 1;
+  renderSokobanBoard();
+  checkSokobanWin();
+}
+
+function isSokobanInBounds(row, column) {
+  return row >= 0 && row < sokobanRows && column >= 0 && column < sokobanCols;
+}
+
+function checkSokobanWin() {
+  const wonState = [...sokobanBoxes].every((box) => sokobanTargets.has(box));
+
+  if (!wonState) {
+    return;
+  }
+
+  sokobanWon = true;
+  stopSokobanTimer();
+  sokobanStatusText.textContent = text.sokobanWin;
+  settleSokobanGame("won");
+}
+
+async function settleSokobanGame(reason) {
+  if (!hasAccount() || sokobanSettled || !sokobanWon || sokobanSteps === 0) {
+    return;
+  }
+
+  sokobanSettled = true;
+  const seconds = sokobanStartedAt ? Math.floor((Date.now() - sokobanStartedAt) / 1000) : sokobanSeconds;
+
+  try {
+    const data = await apiRequest("/api/games/sokoban/results", {
+      method: "POST",
+      body: JSON.stringify({
+        gameId: sokobanGameId,
+        won: sokobanWon,
+        level: sokobanLevelIndex,
+        steps: sokobanSteps,
+        seconds,
+        reason,
+      }),
+    });
+
+    renderAccount(data.profile);
+    await refreshLeaderboard(data.leaderboard);
+    sokobanStatusText.textContent = `本局获得 ${data.award.points} 积分。`;
+  } catch (error) {
+    sokobanStatusText.textContent = error.message;
+    sokobanSettled = false;
+  }
 }
 
 function renderMinesweeperStats() {
@@ -943,7 +1337,11 @@ function getMineCubeSize(config) {
   const stageWidth =
     mineModelStage.getBoundingClientRect().width || Math.min(window.innerWidth - 48, 620);
   const gridWidth = Math.max(config.rows, config.cols, config.layers);
-  return Math.max(24, Math.min(36, Math.floor((stageWidth - 80) / gridWidth)));
+  const minSize = mineLightMode ? 18 : 24;
+  const maxSize = mineLightMode ? 28 : 36;
+  const padding = mineLightMode ? 130 : 80;
+
+  return Math.max(minSize, Math.min(maxSize, Math.floor((stageWidth - padding) / gridWidth)));
 }
 
 function getMineCubePosition(layer, row, column, config, cubeSize) {
@@ -953,7 +1351,7 @@ function getMineCubePosition(layer, row, column, config, cubeSize) {
   const rowMiddle = (config.rows - 1) / 2;
   const columnMiddle = (config.cols - 1) / 2;
   const layerOffset = layer - layerMiddle;
-  const layerGap = mineModelExpanded ? cubeSize * 1.9 : 0;
+  const layerGap = mineModelExpanded ? cubeSize * (mineLightMode ? 1.15 : 1.45) : 0;
 
   return {
     x: (column - columnMiddle) * step,
@@ -984,11 +1382,12 @@ function getMineCellMark(cell, revealAllMines) {
 
 function createMineCube(layer, row, column, cell, config, cubeSize) {
   const cube = document.createElement("button");
+  const faceNames = mineLightMode ? ["front", "right", "top"] : ["front", "back", "right", "left", "top", "bottom"];
 
   cube.type = "button";
   cube.className = "mine-cube";
 
-  ["front", "back", "right", "left", "top", "bottom"].forEach((faceName) => {
+  faceNames.forEach((faceName) => {
     const face = document.createElement("span");
     face.className = `cube-face cube-${faceName}`;
     cube.appendChild(face);
@@ -1226,6 +1625,15 @@ function renderMinesweeperBoard() {
   const config = getMineDifficulty();
   const fragment = document.createDocumentFragment();
   const cubeSize = getMineCubeSize(config);
+  const renderMode = mineLightMode ? "light" : "full";
+
+  mineModelStage.classList.toggle("is-light-mode", mineLightMode);
+
+  if (mineModelSpace.dataset.renderMode !== renderMode) {
+    mineModelSpace.innerHTML = "";
+    mineModelSpace.dataset.renderMode = renderMode;
+  }
+
   const existingCubes = new Map(
     Array.from(mineModelSpace.querySelectorAll(".mine-cube")).map((cube) => [
       cube.dataset.key,
@@ -1560,6 +1968,10 @@ function handleMineTouchEnd(event) {
 }
 
 function handleMineTouchMove(event) {
+  if (mineModelDragging) {
+    event.preventDefault();
+  }
+
   const touch = event.changedTouches[0];
   moveMineModelDrag(touch.clientX, touch.clientY);
 
@@ -1623,6 +2035,15 @@ function toggleMineModelExpanded() {
   renderMinesweeperBoard();
 }
 
+function handleMineLightModeChange(event) {
+  mineLightMode = event.matches;
+
+  if (mineBoard.length > 0) {
+    setupMinesweeperMarkup();
+    renderMinesweeperBoard();
+  }
+}
+
 async function copyRoomCode() {
   if (!currentRoomCode) {
     return;
@@ -1671,6 +2092,24 @@ mineExpandButton.addEventListener("click", toggleMineModelExpanded);
 mineDifficultySelect.addEventListener("change", () => {
   setMineDifficulty(mineDifficultySelect.value);
 });
+sokobanRestartButton.addEventListener("click", () => startSokobanGame());
+sokobanLevelSelect.addEventListener("change", () => {
+  sokobanLevelIndex = Number(sokobanLevelSelect.value) || 0;
+  localStorage.setItem(sokobanLevelKey, String(sokobanLevelIndex));
+  startSokobanGame();
+});
+sokobanPadButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    const movesByName = {
+      up: { row: -1, column: 0 },
+      down: { row: 1, column: 0 },
+      left: { row: 0, column: -1 },
+      right: { row: 0, column: 1 },
+    };
+
+    moveSokoban(movesByName[button.dataset.sokobanMove]);
+  });
+});
 messageButton.addEventListener("click", hideMessageAndContinue);
 gameCards.forEach((card) => {
   card.addEventListener("click", () => setActiveGame(card.dataset.game));
@@ -1678,6 +2117,8 @@ gameCards.forEach((card) => {
 document.addEventListener("keydown", handleKeyDown);
 boardElement.addEventListener("touchstart", handleTouchStart, { passive: true });
 boardElement.addEventListener("touchend", handleTouchEnd);
+sokobanBoardElement.addEventListener("touchstart", handleSokobanTouchStart, { passive: true });
+sokobanBoardElement.addEventListener("touchend", handleSokobanTouchEnd);
 roomCodeInput.addEventListener("input", () => {
   roomCodeInput.value = roomCodeInput.value.toUpperCase();
 });
@@ -1688,8 +2129,13 @@ document.addEventListener("mousemove", handleMineModelPointerMove);
 document.addEventListener("mouseup", endMineModelDrag);
 mineModelStage.addEventListener("touchstart", handleMineTouchStart, { passive: true });
 mineModelStage.addEventListener("touchend", handleMineTouchEnd);
-mineModelStage.addEventListener("touchmove", handleMineTouchMove, { passive: true });
+mineModelStage.addEventListener("touchmove", handleMineTouchMove, { passive: false });
 mineModelStage.addEventListener("touchcancel", handleMineTouchCancel);
+if (typeof mineLightModeQuery.addEventListener === "function") {
+  mineLightModeQuery.addEventListener("change", handleMineLightModeChange);
+} else {
+  mineLightModeQuery.addListener(handleMineLightModeChange);
+}
 window.addEventListener("resize", () => {
   if (mineBoard.length > 0) {
     renderMinesweeperBoard();
@@ -1697,10 +2143,13 @@ window.addEventListener("resize", () => {
 });
 
 setupBoardMarkup();
+setupSokobanLevels();
 mineDifficultySelect.value = mineDifficulty;
+sokobanLevelSelect.value = String(sokobanLevelIndex);
 setupMinesweeperMarkup();
 board = createEmptyBoard();
 mineBoard = createMineBoard();
 initializeMinesweeperBoard();
+startSokobanGame({ settlePrevious: false });
 start2048Game({ notify: false, settlePrevious: false });
 loadSession();
