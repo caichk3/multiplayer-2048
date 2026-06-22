@@ -567,10 +567,11 @@ function calculateSokobanAward({ won, level, steps, seconds }) {
     };
   }
 
-  const levelBonus = (level + 1) * 45;
+  const difficulty = level + 1;
+  const levelBonus = difficulty * 70 + Math.max(0, difficulty - 4) * 35;
   const clearBonus = 180;
-  const stepBonus = Math.max(0, 180 - steps * 3);
-  const speedBonus = Math.max(0, 120 - seconds);
+  const stepBonus = Math.max(0, 220 - steps * 2);
+  const speedBonus = Math.max(0, 150 - seconds);
 
   return {
     points: Math.max(0, levelBonus + clearBonus + stepBonus + speedBonus),
