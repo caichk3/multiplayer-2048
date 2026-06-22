@@ -212,8 +212,24 @@
             </div>
           </div>
 
-          <div class="minefield-wrap">
-            <div id="minefield" class="minefield" aria-label="3D 扫雷棋盘"></div>
+          <div class="minesweeper-layout">
+            <div class="minefield-wrap">
+              <div id="minefield" class="minefield" aria-label="3D 扫雷棋盘"></div>
+            </div>
+
+            <aside class="mine-viewer" aria-label="旗子 3D 视图">
+              <div class="mine-viewer-head">
+                <div>
+                  <p class="eyebrow">Flag View</p>
+                  <h3>旗子视图</h3>
+                </div>
+                <span id="mine-viewer-count">0</span>
+              </div>
+              <div id="mine-viewer-stage" class="mine-viewer-stage">
+                <div id="mine-viewer-space" class="mine-viewer-space"></div>
+                <p id="mine-viewer-empty" class="mine-viewer-empty">插旗后会显示在这里</p>
+              </div>
+            </aside>
           </div>
         </section>
 
