@@ -973,45 +973,9 @@ function getMineCellLabel(cell, revealAllMines) {
 
 function createMineCube(layer, row, column, cell, config, cubeSize) {
   const cube = document.createElement("button");
-  const revealAllMines = mineGameOver && !mineGameWon;
-  const labelText = getMineCellLabel(cell, revealAllMines);
-  const position = getMineCubePosition(layer, row, column, config, cubeSize);
 
   cube.type = "button";
   cube.className = "mine-cube";
-  cube.dataset.layer = String(layer);
-  cube.dataset.row = String(row);
-  cube.dataset.column = String(column);
-  cube.style.setProperty("--cube-size", `${cubeSize}px`);
-  cube.style.setProperty("--cube-half", `${cubeSize / 2}px`);
-  cube.style.setProperty("--cube-x", `${position.x}px`);
-  cube.style.setProperty("--cube-y", `${position.y}px`);
-  cube.style.setProperty("--cube-z", `${position.z}px`);
-  cube.style.setProperty("--cube-hue", String(176 + layer * 17));
-  cube.setAttribute("aria-label", `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`);
-
-  if (cell.open) {
-    cube.classList.add("is-open");
-
-    if (cell.mine) {
-      cube.classList.add("is-mine-revealed");
-      cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，雷`);
-    } else if (cell.adjacent > 0) {
-      cube.classList.add(`is-number-${Math.min(cell.adjacent, 8)}`);
-      cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，数字 ${cell.adjacent}`);
-    } else {
-      cube.classList.add("is-zero");
-      cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，空`);
-    }
-  } else if (cell.flagged) {
-    cube.classList.add("is-flagged");
-    cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，已插旗`);
-  }
-
-  if (revealAllMines && cell.mine && !cell.open) {
-    cube.classList.add("is-mine");
-    cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，未翻开的雷`);
-  }
 
   ["front", "back", "right", "left", "top", "bottom"].forEach((faceName) => {
     const face = document.createElement("span");
@@ -1021,10 +985,56 @@ function createMineCube(layer, row, column, cell, config, cubeSize) {
 
   const label = document.createElement("span");
   label.className = "cube-label";
-  label.textContent = labelText;
   cube.appendChild(label);
+  updateMineCube(cube, layer, row, column, cell, config, cubeSize);
 
   return cube;
+}
+
+function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
+  const revealAllMines = mineGameOver && !mineGameWon;
+  const labelText = getMineCellLabel(cell, revealAllMines);
+  const position = getMineCubePosition(layer, row, column, config, cubeSize);
+  let ariaLabel = `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`;
+
+  cube.className = "mine-cube";
+  cube.dataset.layer = String(layer);
+  cube.dataset.row = String(row);
+  cube.dataset.column = String(column);
+  cube.dataset.key = mineCellKey(layer, row, column);
+  cube.style.setProperty("--cube-size", `${cubeSize}px`);
+  cube.style.setProperty("--cube-half", `${cubeSize / 2}px`);
+  cube.style.setProperty("--cube-x", `${position.x}px`);
+  cube.style.setProperty("--cube-y", `${position.y}px`);
+  cube.style.setProperty("--cube-z", `${position.z}px`);
+  cube.style.setProperty("--cube-hue", String(176 + layer * 17));
+
+  if (cell.open) {
+    cube.classList.add("is-open");
+
+    if (cell.mine) {
+      cube.classList.add("is-mine-revealed");
+      ariaLabel = `${ariaLabel}，雷`;
+    } else if (cell.adjacent > 0) {
+      cube.classList.add(`is-number-${Math.min(cell.adjacent, 8)}`);
+      ariaLabel = `${ariaLabel}，数字 ${cell.adjacent}`;
+    } else {
+      cube.classList.add("is-zero");
+      ariaLabel = `${ariaLabel}，空`;
+    }
+  } else if (cell.flagged) {
+    cube.classList.add("is-flagged");
+    ariaLabel = `${ariaLabel}，已插旗`;
+  }
+
+  if (revealAllMines && cell.mine && !cell.open) {
+    cube.classList.add("is-mine");
+    ariaLabel = `${ariaLabel}，未翻开的雷`;
+  }
+
+  const label = cube.querySelector(".cube-label");
+  label.textContent = labelText;
+  cube.setAttribute("aria-label", ariaLabel);
 }
 
 function startMineTimer() {
@@ -1205,8 +1215,14 @@ function renderMinesweeperBoard() {
   const config = getMineDifficulty();
   const fragment = document.createDocumentFragment();
   const cubeSize = getMineCubeSize(config);
+  const existingCubes = new Map(
+    Array.from(mineModelSpace.querySelectorAll(".mine-cube")).map((cube) => [
+      cube.dataset.key,
+      cube,
+    ]),
+  );
+  const activeKeys = new Set();
 
-  mineModelSpace.innerHTML = "";
   mineModelSpace.style.setProperty("--cube-size", `${cubeSize}px`);
   mineModelSpace.style.setProperty("--cube-half", `${cubeSize / 2}px`);
   mineModelSpace.classList.toggle("is-expanded", mineModelExpanded);
@@ -1220,10 +1236,21 @@ function renderMinesweeperBoard() {
           continue;
         }
 
-        fragment.appendChild(createMineCube(layer, row, column, cell, config, cubeSize));
+        const key = mineCellKey(layer, row, column);
+        const cube = existingCubes.get(key) || createMineCube(layer, row, column, cell, config, cubeSize);
+
+        activeKeys.add(key);
+        updateMineCube(cube, layer, row, column, cell, config, cubeSize);
+        fragment.appendChild(cube);
       }
     }
   }
+
+  existingCubes.forEach((cube, key) => {
+    if (!activeKeys.has(key)) {
+      cube.remove();
+    }
+  });
 
   mineModelSpace.appendChild(fragment);
   applyMineModelRotation();
