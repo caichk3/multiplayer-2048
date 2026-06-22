@@ -69,8 +69,8 @@
             <strong id="profile-minesweeper-wins">0</strong>
           </div>
           <div>
-            <span>推箱子胜场</span>
-            <strong id="profile-sokoban-wins">0</strong>
+            <span>飞鸟最佳</span>
+            <strong id="profile-flappy-best">0</strong>
           </div>
           <button id="logout-button" class="ghost-button" type="button">退出</button>
         </div>
@@ -96,10 +96,10 @@
             <h3>3D 扫雷</h3>
             <p>立体模型 · 分层展开 · 26 邻域判断</p>
           </button>
-          <button class="game-card" type="button" data-game="sokoban">
+          <button class="game-card" type="button" data-game="flappy">
             <span class="game-badge">可玩</span>
-            <h3>推箱子</h3>
-            <p>轻量解谜 · 滑动推箱 · 手机友好</p>
+            <h3>Flappy 飞鸟</h3>
+            <p>反应挑战 · 随机管道 · 分数竞速</p>
           </button>
         </div>
       </section>
@@ -231,46 +231,38 @@
           </div>
         </section>
 
-        <section class="game-panel game-view is-hidden" id="game-sokoban" aria-label="推箱子">
+        <section class="game-panel game-view is-hidden" id="game-flappy" aria-label="Flappy 飞鸟">
           <div class="game-topbar">
             <div>
-              <p class="eyebrow">Sokoban</p>
-              <h2>推箱子</h2>
+              <p class="eyebrow">Flappy</p>
+              <h2>飞鸟穿管</h2>
             </div>
 
-            <div class="score-panel" aria-label="推箱子状态">
+            <div class="score-panel" aria-label="飞鸟状态">
               <div class="score-box">
-                <span>步数</span>
-                <strong id="sokoban-steps">0</strong>
+                <span>分数</span>
+                <strong id="flappy-score">0</strong>
               </div>
               <div class="score-box">
-                <span>时间</span>
-                <strong id="sokoban-time">0</strong>
+                <span>最高</span>
+                <strong id="flappy-best">0</strong>
               </div>
             </div>
           </div>
 
           <div class="controls">
-            <p id="sokoban-status-text">方向键、WASD 或滑动控制移动。</p>
-            <div class="sokoban-controls">
-              <label for="sokoban-level">关卡</label>
-              <select id="sokoban-level"></select>
-              <button id="sokoban-restart-button" type="button">重新开局</button>
-            </div>
+            <p id="flappy-status-text">点击、触屏或按空格起飞。</p>
+            <button id="flappy-restart-button" type="button">开始</button>
           </div>
 
-          <div class="sokoban-layout">
-            <div class="sokoban-board-wrap">
-              <div id="sokoban-board" class="sokoban-board" aria-label="推箱子棋盘"></div>
-            </div>
-
-            <div class="sokoban-pad" aria-label="移动控制">
-              <button class="sokoban-pad-button" type="button" data-sokoban-move="up" aria-label="上移">↑</button>
-              <button class="sokoban-pad-button" type="button" data-sokoban-move="left" aria-label="左移">←</button>
-              <button class="sokoban-pad-button is-spacer" type="button" tabindex="-1" aria-hidden="true"></button>
-              <button class="sokoban-pad-button" type="button" data-sokoban-move="right" aria-label="右移">→</button>
-              <button class="sokoban-pad-button" type="button" data-sokoban-move="down" aria-label="下移">↓</button>
-            </div>
+          <div class="flappy-stage-wrap">
+            <canvas
+              id="flappy-canvas"
+              class="flappy-canvas"
+              width="420"
+              height="560"
+              aria-label="Flappy 飞鸟游戏画面"
+            ></canvas>
           </div>
         </section>
 

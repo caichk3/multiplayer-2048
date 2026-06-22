@@ -223,11 +223,10 @@ app.post("/api/games/minesweeper-3d/results", requireAuth, (request, response) =
   });
 });
 
-app.post("/api/games/sokoban/results", requireAuth, (request, response) => {
+app.post("/api/games/flappy/results", requireAuth, (request, response) => {
   const gameId = String(request.body?.gameId || "").trim();
-  const won = Boolean(request.body?.won);
-  const level = clampInteger(request.body?.level, 0, 9999);
-  const steps = clampInteger(request.body?.steps, 0, 999999);
+  const score = clampInteger(request.body?.score, 0, 999999);
+  const bestScore = clampInteger(request.body?.bestScore, 0, 999999);
   const seconds = clampInteger(request.body?.seconds, 0, 86400);
   const user = request.user;
 
@@ -242,39 +241,34 @@ app.post("/api/games/sokoban/results", requireAuth, (request, response) => {
     response.json({
       ok: true,
       duplicate: true,
-      award: { points: 0, won, level, steps, seconds },
+      award: { points: 0, score, bestScore, seconds },
       profile: getPublicProfile(user),
       leaderboard: getGlobalLeaderboard(),
     });
     return;
   }
 
-  const award = calculateSokobanAward({ won, level, steps, seconds });
-  const gameStats = user.stats.games.sokoban;
+  const award = calculateFlappyAward({ score, seconds });
+  const gameStats = user.stats.games.flappy;
 
   user.totalPoints += award.points;
   user.stats.gamesPlayed += 1;
   user.stats.lastPlayedAt = Date.now();
   gameStats.plays += 1;
-  gameStats.wins += won ? 1 : 0;
-  gameStats.bestSteps =
-    won && (gameStats.bestSteps === 0 || steps < gameStats.bestSteps)
-      ? steps
-      : gameStats.bestSteps;
+  gameStats.totalScore += score;
+  gameStats.bestScore = Math.max(gameStats.bestScore, score, bestScore);
   gameStats.bestTime =
-    won && (gameStats.bestTime === 0 || seconds < gameStats.bestTime)
+    score > 0 && (gameStats.bestTime === 0 || seconds > gameStats.bestTime)
       ? seconds
       : gameStats.bestTime;
-  gameStats.lastLevel = level;
-  gameStats.lastSteps = steps;
+  gameStats.lastScore = score;
   gameStats.lastPlayedAt = Date.now();
   user.settledGames.push(gameId);
   user.settledGames = user.settledGames.slice(-180);
   user.recentResults.unshift({
-    game: "sokoban",
-    won,
-    level,
-    steps,
+    game: "flappy",
+    score,
+    bestScore: gameStats.bestScore,
     seconds,
     points: award.points,
     playedAt: Date.now(),
@@ -338,6 +332,14 @@ function createDefaultStats() {
         lastRevealed: 0,
         lastPlayedAt: null,
       },
+      flappy: {
+        plays: 0,
+        totalScore: 0,
+        bestScore: 0,
+        bestTime: 0,
+        lastScore: 0,
+        lastPlayedAt: null,
+      },
       sokoban: {
         plays: 0,
         wins: 0,
@@ -365,6 +367,10 @@ function ensureUserShape(user) {
   user.stats.games.minesweeper3d = {
     ...createDefaultStats().games.minesweeper3d,
     ...(user.stats.games.minesweeper3d || {}),
+  };
+  user.stats.games.flappy = {
+    ...createDefaultStats().games.flappy,
+    ...(user.stats.games.flappy || {}),
   };
   user.stats.games.sokoban = {
     ...createDefaultStats().games.sokoban,
@@ -471,7 +477,7 @@ function getPublicProfile(user) {
   ensureUserShape(user);
   const game2048 = user.stats.games["2048"];
   const minesweeper3d = user.stats.games.minesweeper3d;
-  const sokoban = user.stats.games.sokoban;
+  const flappy = user.stats.games.flappy;
 
   return {
     id: user.id,
@@ -496,13 +502,12 @@ function getPublicProfile(user) {
         lastResult: minesweeper3d.lastResult,
         lastRevealed: minesweeper3d.lastRevealed,
       },
-      sokoban: {
-        plays: sokoban.plays,
-        wins: sokoban.wins,
-        bestTime: sokoban.bestTime,
-        bestSteps: sokoban.bestSteps,
-        lastLevel: sokoban.lastLevel,
-        lastSteps: sokoban.lastSteps,
+      flappy: {
+        plays: flappy.plays,
+        totalScore: flappy.totalScore,
+        bestScore: flappy.bestScore,
+        bestTime: flappy.bestTime,
+        lastScore: flappy.lastScore,
       },
     },
     recentResults: user.recentResults.slice(0, 6),
@@ -556,28 +561,14 @@ function calculateMinesweeperAward({ won, revealed, totalSafe, flags, seconds })
   };
 }
 
-function calculateSokobanAward({ won, level, steps, seconds }) {
-  if (!won) {
-    return {
-      points: 0,
-      won,
-      level,
-      steps,
-      seconds,
-    };
-  }
-
-  const difficulty = level + 1;
-  const levelBonus = difficulty * 70 + Math.max(0, difficulty - 4) * 35;
-  const clearBonus = 180;
-  const stepBonus = Math.max(0, 220 - steps * 2);
-  const speedBonus = Math.max(0, 150 - seconds);
+function calculateFlappyAward({ score, seconds }) {
+  const scorePoints = score * 28;
+  const survivalBonus = Math.min(220, seconds * 4);
+  const milestoneBonus = Math.floor(score / 5) * 80;
 
   return {
-    points: Math.max(0, levelBonus + clearBonus + stepBonus + speedBonus),
-    won,
-    level,
-    steps,
+    points: Math.max(0, scorePoints + survivalBonus + milestoneBonus),
+    score,
     seconds,
   };
 }

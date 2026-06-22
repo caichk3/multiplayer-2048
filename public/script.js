@@ -31,12 +31,12 @@ const profileLevel = document.querySelector("#profile-level");
 const profilePoints = document.querySelector("#profile-points");
 const profileBest = document.querySelector("#profile-best");
 const profileMinesweeperWins = document.querySelector("#profile-minesweeper-wins");
-const profileSokobanWins = document.querySelector("#profile-sokoban-wins");
+const profileFlappyBest = document.querySelector("#profile-flappy-best");
 const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"));
 const roomPanel = document.querySelector("#room-panel");
 const game2048Panel = document.querySelector("#game-2048");
 const gameMinesweeperPanel = document.querySelector("#game-minesweeper3d");
-const gameSokobanPanel = document.querySelector("#game-sokoban");
+const gameFlappyPanel = document.querySelector("#game-flappy");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
 const mineExpandButton = document.querySelector("#mine-expand-button");
@@ -49,18 +49,17 @@ const mineLayersElement = document.querySelector("#mine-layers");
 const mineShapeSizeElement = document.querySelector("#mine-shape-size");
 const mineModelStage = document.querySelector("#mine-model-stage");
 const mineModelSpace = document.querySelector("#mine-model-space");
-const sokobanBoardElement = document.querySelector("#sokoban-board");
-const sokobanStatusText = document.querySelector("#sokoban-status-text");
-const sokobanRestartButton = document.querySelector("#sokoban-restart-button");
-const sokobanLevelSelect = document.querySelector("#sokoban-level");
-const sokobanStepsElement = document.querySelector("#sokoban-steps");
-const sokobanTimeElement = document.querySelector("#sokoban-time");
-const sokobanPadButtons = Array.from(document.querySelectorAll("[data-sokoban-move]"));
+const flappyCanvas = document.querySelector("#flappy-canvas");
+const flappyContext = flappyCanvas.getContext("2d");
+const flappyStatusText = document.querySelector("#flappy-status-text");
+const flappyRestartButton = document.querySelector("#flappy-restart-button");
+const flappyScoreElement = document.querySelector("#flappy-score");
+const flappyBestElement = document.querySelector("#flappy-best");
 
 const socket = io();
 const GAME_2048 = "2048";
 const GAME_MINESWEEPER = "minesweeper3d";
-const GAME_SOKOBAN = "sokoban";
+const GAME_FLAPPY = "flappy";
 const size = 4;
 const totalCells = size * size;
 const bestKey = "web2-multiplayer-2048-best-score";
@@ -68,7 +67,7 @@ const tokenKey = "class-arcade-token";
 const nameKey = "class-arcade-name";
 const currentGameKey = "class-arcade-current-game";
 const mineDifficultyKey = "class-arcade-minesweeper-difficulty";
-const sokobanLevelKey = "class-arcade-sokoban-level";
+const flappyBestKey = "class-arcade-flappy-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const mineDifficulties = {
   easy: {
@@ -104,149 +103,19 @@ const mineDifficulties = {
     mines: 52,
   },
 };
-const sokobanLevels = [
-  {
-    name: "单箱转弯",
-    map: [
-      "########",
-      "#   .  #",
-      "# # $  #",
-      "#  @   #",
-      "#      #",
-      "########",
-    ],
-  },
-  {
-    name: "双箱练习",
-    map: [
-      "########",
-      "#  ..  #",
-      "#  $$  #",
-      "#  @   #",
-      "#      #",
-      "########",
-    ],
-  },
-  {
-    name: "回字走廊",
-    map: [
-      "#########",
-      "#   #   #",
-      "#   $ . #",
-      "#   @   #",
-      "#   $ . #",
-      "#   #   #",
-      "#########",
-    ],
-  },
-  {
-    name: "转角仓库",
-    map: [
-      "##########",
-      "#   .    #",
-      "# # $$ # #",
-      "# #  @ # #",
-      "#    .   #",
-      "##########",
-    ],
-  },
-  {
-    name: "三箱货架",
-    map: [
-      "##########",
-      "#  . .   #",
-      "#  $$#   #",
-      "# #  #   #",
-      "#   @$ . #",
-      "#        #",
-      "##########",
-    ],
-  },
-  {
-    name: "四箱分拣",
-    map: [
-      "###########",
-      "#   ..    #",
-      "# # $$ #  #",
-      "# # @  #  #",
-      "#   $$ #  #",
-      "#   ..    #",
-      "###########",
-    ],
-  },
-  {
-    name: "狭路调头",
-    map: [
-      "############",
-      "#     #    #",
-      "#  $. # .  #",
-      "#  $  # $  #",
-      "#  #  @    #",
-      "#  .       #",
-      "############",
-    ],
-  },
-  {
-    name: "四角分流",
-    map: [
-      "#############",
-      "#  .     .  #",
-      "#  $     $  #",
-      "#     @     #",
-      "#  $     $  #",
-      "#  .     .  #",
-      "#############",
-    ],
-  },
-  {
-    name: "双仓门",
-    map: [
-      "############",
-      "# .  #  .  #",
-      "# $     $  #",
-      "#    @     #",
-      "# $     $  #",
-      "# .  #  .  #",
-      "############",
-    ],
-  },
-  {
-    name: "长廊锁位",
-    map: [
-      "#############",
-      "#     .     #",
-      "# ### $ ### #",
-      "# .  $@$  . #",
-      "# ### $ ### #",
-      "#     .     #",
-      "#############",
-    ],
-  },
-  {
-    name: "中心十字",
-    map: [
-      "#############",
-      "#    . .    #",
-      "# ## $ $ ## #",
-      "# .  $@$  . #",
-      "# ## $ $ ## #",
-      "#    . .    #",
-      "#############",
-    ],
-  },
-  {
-    name: "岛仓调度",
-    map: [
-      "############",
-      "#          #",
-      "#  $$##$$  #",
-      "#    @     #",
-      "#  ..##..  #",
-      "#          #",
-      "############",
-    ],
-  },
-];
+const flappySettings = {
+  width: 420,
+  height: 560,
+  birdX: 118,
+  birdRadius: 16,
+  gravity: 0.42,
+  jumpVelocity: -7.4,
+  pipeWidth: 66,
+  pipeGap: 150,
+  pipeSpacing: 208,
+  pipeSpeed: 2.65,
+  groundHeight: 62,
+};
 const text = {
   ready: "已经进入房间，开始挑战吧。本局结束或重新开始时会结算平台积分。",
   waiting: "先登录账号，再创建或加入房间。",
@@ -258,8 +127,9 @@ const text = {
   minesReady: "拖动旋转模型，点立方体翻开，右键或长按插旗。",
   minesWin: "3D 扫雷完成，积分已结算。",
   minesLose: "踩到雷了，积分已结算。",
-  sokobanReady: "方向键、WASD 或滑动控制移动。",
-  sokobanWin: "推箱子完成，积分已结算。",
+  flappyReady: "点击、触屏或按空格起飞，穿过管道拿分。",
+  flappyPlaying: "保持节奏，别碰到管道或地面。",
+  flappyOver: "撞到了，本局分数已结算。",
 };
 
 let currentGame = localStorage.getItem(currentGameKey) || GAME_2048;
@@ -306,29 +176,23 @@ let mineModelDragDistance = 0;
 let mineModelExpanded = false;
 let mineModelRotationFrameId = null;
 let mineLightMode = mineLightModeQuery.matches;
-let sokobanLevelIndex = Number(localStorage.getItem(sokobanLevelKey)) || 0;
-let sokobanWalls = [];
-let sokobanTargets = new Set();
-let sokobanBoxes = new Set();
-let sokobanPlayer = { row: 0, column: 0 };
-let sokobanRows = 0;
-let sokobanCols = 0;
-let sokobanSteps = 0;
-let sokobanStartedAt = 0;
-let sokobanSeconds = 0;
-let sokobanTimerId = null;
-let sokobanGameId = createGameId();
-let sokobanWon = false;
-let sokobanSettled = false;
-let sokobanTouchStartX = 0;
-let sokobanTouchStartY = 0;
+let flappyGameId = createGameId();
+let flappyScore = 0;
+let flappyBest = Number(localStorage.getItem(flappyBestKey)) || 0;
+let flappyBirdY = flappySettings.height * 0.44;
+let flappyVelocity = 0;
+let flappyPipes = [];
+let flappyRunning = false;
+let flappyGameOver = false;
+let flappyStartedAt = 0;
+let flappyAnimationId = null;
+let flappyLastFrameTime = 0;
+let flappySettled = false;
+let flappyGroundOffset = 0;
+let flappyClouds = [];
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
-}
-
-if (!sokobanLevels[sokobanLevelIndex]) {
-  sokobanLevelIndex = 0;
 }
 
 function createGameId() {
@@ -458,7 +322,7 @@ function renderAccount(nextProfile) {
     createRoomButton.disabled = true;
     joinRoomButton.disabled = true;
     profileMinesweeperWins.textContent = "0";
-    profileSokobanWins.textContent = "0";
+    profileFlappyBest.textContent = "0";
     updateRoomActions();
     return;
   }
@@ -472,7 +336,10 @@ function renderAccount(nextProfile) {
   profilePoints.textContent = String(profile.totalPoints);
   profileBest.textContent = String(profile.stats.game2048.highScore);
   profileMinesweeperWins.textContent = String(profile.stats.minesweeper3d.wins);
-  profileSokobanWins.textContent = String(profile.stats.sokoban?.wins || 0);
+  flappyBest = Math.max(flappyBest, profile.stats.flappy?.bestScore || 0);
+  localStorage.setItem(flappyBestKey, String(flappyBest));
+  profileFlappyBest.textContent = String(flappyBest);
+  flappyBestElement.textContent = String(flappyBest);
   profileStrip.hidden = false;
   accountForm.hidden = true;
   createRoomButton.disabled = false;
@@ -483,11 +350,11 @@ function renderAccount(nextProfile) {
 function updateRoomActions() {
   const show2048 = currentGame === GAME_2048;
   const showMinesweeper = currentGame === GAME_MINESWEEPER;
-  const showSokoban = currentGame === GAME_SOKOBAN;
+  const showFlappy = currentGame === GAME_FLAPPY;
   roomPanel.hidden = !show2048;
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
-  gameSokobanPanel.classList.toggle("is-hidden", !showSokoban);
+  gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
 
   gameCards.forEach((card) => {
     card.classList.toggle("is-active", card.dataset.game === currentGame);
@@ -501,8 +368,9 @@ function updateRoomActions() {
         ? text.minesWin
         : text.minesLose
       : getMineReadyText();
-  } else if (showSokoban) {
-    sokobanStatusText.textContent = sokobanWon ? text.sokobanWin : text.sokobanReady;
+  } else if (showFlappy) {
+    flappyStatusText.textContent = flappyGameOver ? text.flappyOver : text.flappyReady;
+    renderFlappy();
   }
 }
 
@@ -512,7 +380,7 @@ function getMineReadyText() {
 }
 
 function setActiveGame(gameId, options = {}) {
-  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_SOKOBAN].includes(gameId)
+  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY].includes(gameId)
     ? gameId
     : GAME_2048;
 
@@ -868,15 +736,12 @@ function getDirectionFromKey(key) {
 }
 
 function handleKeyDown(event) {
-  if (currentGame === GAME_SOKOBAN) {
-    const direction = getSokobanDirection(event.key);
-
-    if (!direction) {
-      return;
+  if (currentGame === GAME_FLAPPY) {
+    if ([" ", "ArrowUp", "w", "W"].includes(event.key)) {
+      event.preventDefault();
+      flap();
     }
 
-    event.preventDefault();
-    moveSokoban(direction);
     return;
   }
 
@@ -927,37 +792,6 @@ function handleTouchEnd(event) {
     move2048(deltaX > 0 ? "right" : "left");
   } else {
     move2048(deltaY > 0 ? "down" : "up");
-  }
-}
-
-function handleSokobanTouchStart(event) {
-  if (currentGame !== GAME_SOKOBAN) {
-    return;
-  }
-
-  const touch = event.changedTouches[0];
-  sokobanTouchStartX = touch.clientX;
-  sokobanTouchStartY = touch.clientY;
-}
-
-function handleSokobanTouchEnd(event) {
-  if (currentGame !== GAME_SOKOBAN) {
-    return;
-  }
-
-  const touch = event.changedTouches[0];
-  const deltaX = touch.clientX - sokobanTouchStartX;
-  const deltaY = touch.clientY - sokobanTouchStartY;
-  const minimumSwipe = 24;
-
-  if (Math.max(Math.abs(deltaX), Math.abs(deltaY)) < minimumSwipe) {
-    return;
-  }
-
-  if (Math.abs(deltaX) > Math.abs(deltaY)) {
-    moveSokoban({ row: 0, column: deltaX > 0 ? 1 : -1 });
-  } else {
-    moveSokoban({ row: deltaY > 0 ? 1 : -1, column: 0 });
   }
 }
 
@@ -1118,7 +952,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 推箱子 ${player.stats.sokoban?.wins || 0} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟最佳 ${player.stats.flappy?.bestScore || 0}`;
 
     info.append(name, meta);
 
@@ -1135,255 +969,343 @@ function renderGlobalLeaderboard(players) {
   });
 }
 
-function sokobanKey(row, column) {
-  return `${row}-${column}`;
+function resetFlappyGame(options = {}) {
+  stopFlappyLoop();
+  flappyGameId = createGameId();
+  flappyScore = 0;
+  flappyBirdY = flappySettings.height * 0.44;
+  flappyVelocity = 0;
+  flappyPipes = [];
+  flappyRunning = false;
+  flappyGameOver = false;
+  flappyStartedAt = 0;
+  flappySettled = false;
+  flappyGroundOffset = 0;
+  flappyClouds = createFlappyClouds();
+  flappyScoreElement.textContent = "0";
+  flappyBestElement.textContent = String(flappyBest);
+  flappyRestartButton.textContent = "开始";
+  flappyStatusText.textContent = options.readyText || text.flappyReady;
+  seedFlappyPipes();
+  renderFlappy();
 }
 
-function parseSokobanKey(key) {
-  const [row, column] = key.split("-").map(Number);
-  return { row, column };
+function createFlappyClouds() {
+  return [
+    { x: 52, y: 84, size: 26, speed: 0.14 },
+    { x: 238, y: 126, size: 18, speed: 0.1 },
+    { x: 336, y: 70, size: 22, speed: 0.12 },
+  ];
 }
 
-function setupSokobanLevels() {
-  sokobanLevelSelect.innerHTML = "";
+function seedFlappyPipes() {
+  flappyPipes = [];
+  for (let index = 0; index < 3; index += 1) {
+    flappyPipes.push(createFlappyPipe(flappySettings.width + 120 + index * flappySettings.pipeSpacing));
+  }
+}
 
-  sokobanLevels.forEach((level, index) => {
-    const option = document.createElement("option");
-    option.value = String(index);
-    option.textContent = `${index + 1}. ${level.name}`;
-    sokobanLevelSelect.appendChild(option);
+function createFlappyPipe(x) {
+  const topMin = 72;
+  const topMax = flappySettings.height - flappySettings.groundHeight - flappySettings.pipeGap - 92;
+  const topHeight = topMin + Math.random() * Math.max(1, topMax - topMin);
+
+  return {
+    x,
+    topHeight,
+    scored: false,
+  };
+}
+
+function startFlappyGame() {
+  if (flappyRunning) {
+    return;
+  }
+
+  if (flappyGameOver) {
+    resetFlappyGame();
+  }
+
+  flappyRunning = true;
+  flappyStartedAt = flappyStartedAt || Date.now();
+  flappyLastFrameTime = performance.now();
+  flappyRestartButton.textContent = "重新开始";
+  flappyStatusText.textContent = text.flappyPlaying;
+  flappyVelocity = flappySettings.jumpVelocity;
+  flappyAnimationId = window.requestAnimationFrame(updateFlappyFrame);
+}
+
+function stopFlappyLoop() {
+  if (flappyAnimationId) {
+    window.cancelAnimationFrame(flappyAnimationId);
+    flappyAnimationId = null;
+  }
+}
+
+function flap() {
+  if (currentGame !== GAME_FLAPPY) {
+    return;
+  }
+
+  if (!flappyRunning) {
+    startFlappyGame();
+    return;
+  }
+
+  if (flappyGameOver) {
+    resetFlappyGame();
+    return;
+  }
+
+  flappyVelocity = flappySettings.jumpVelocity;
+}
+
+function updateFlappyFrame(timestamp) {
+  if (!flappyRunning) {
+    return;
+  }
+
+  const delta = Math.min(2, (timestamp - flappyLastFrameTime) / 16.67 || 1);
+  flappyLastFrameTime = timestamp;
+  stepFlappy(delta);
+  renderFlappy();
+
+  if (flappyGameOver) {
+    finishFlappyGame();
+    return;
+  }
+
+  flappyAnimationId = window.requestAnimationFrame(updateFlappyFrame);
+}
+
+function stepFlappy(delta) {
+  flappyVelocity += flappySettings.gravity * delta;
+  flappyBirdY += flappyVelocity * delta;
+  flappyGroundOffset = (flappyGroundOffset + flappySettings.pipeSpeed * delta) % 34;
+
+  flappyClouds.forEach((cloud) => {
+    cloud.x -= cloud.speed * delta;
+    if (cloud.x < -cloud.size * 3) {
+      cloud.x = flappySettings.width + cloud.size * 2;
+      cloud.y = 54 + Math.random() * 92;
+    }
   });
 
-  sokobanLevelSelect.value = String(sokobanLevelIndex);
-}
+  flappyPipes.forEach((pipe) => {
+    pipe.x -= flappySettings.pipeSpeed * delta;
 
-function normalizeSokobanMap(map) {
-  const cols = Math.max(...map.map((line) => line.length));
-  return map.map((line) => line.padEnd(cols, " "));
-}
+    if (!pipe.scored && pipe.x + flappySettings.pipeWidth < flappySettings.birdX - flappySettings.birdRadius) {
+      pipe.scored = true;
+      flappyScore += 1;
+      flappyScoreElement.textContent = String(flappyScore);
 
-function startSokobanGame(options = {}) {
-  if (options.settlePrevious !== false) {
-    settleSokobanGame("restart");
-  }
-
-  const level = sokobanLevels[sokobanLevelIndex] || sokobanLevels[0];
-  const map = normalizeSokobanMap(level.map);
-  sokobanRows = map.length;
-  sokobanCols = map[0].length;
-  sokobanWalls = [];
-  sokobanTargets = new Set();
-  sokobanBoxes = new Set();
-  sokobanPlayer = { row: 0, column: 0 };
-  sokobanSteps = 0;
-  sokobanStartedAt = 0;
-  sokobanSeconds = 0;
-  sokobanGameId = createGameId();
-  sokobanWon = false;
-  sokobanSettled = false;
-  stopSokobanTimer();
-
-  map.forEach((line, row) => {
-    [...line].forEach((tile, column) => {
-      if (tile === "#") {
-        sokobanWalls.push(sokobanKey(row, column));
+      if (flappyScore > flappyBest) {
+        flappyBest = flappyScore;
+        localStorage.setItem(flappyBestKey, String(flappyBest));
+        flappyBestElement.textContent = String(flappyBest);
       }
-
-      if (tile === "." || tile === "*" || tile === "+") {
-        sokobanTargets.add(sokobanKey(row, column));
-      }
-
-      if (tile === "$" || tile === "*") {
-        sokobanBoxes.add(sokobanKey(row, column));
-      }
-
-      if (tile === "@" || tile === "+") {
-        sokobanPlayer = { row, column };
-      }
-    });
+    }
   });
 
-  sokobanStatusText.textContent = text.sokobanReady;
-  renderSokobanBoard();
-}
-
-function renderSokobanBoard() {
-  const wallSet = new Set(sokobanWalls);
-  sokobanBoardElement.innerHTML = "";
-  sokobanBoardElement.style.setProperty("--sokoban-cols", String(sokobanCols));
-  sokobanBoardElement.style.setProperty("--sokoban-rows", String(sokobanRows));
-  sokobanBoardElement.style.setProperty("--sokoban-board-width", `${Math.min(560, sokobanCols * 54)}px`);
-  sokobanBoardElement.style.setProperty(
-    "--sokoban-mobile-board-width",
-    `${Math.min(420, sokobanCols * 42)}px`,
-  );
-  sokobanBoardElement.style.setProperty(
-    "--sokoban-small-board-width",
-    `${Math.min(360, sokobanCols * 36)}px`,
-  );
-
-  for (let row = 0; row < sokobanRows; row += 1) {
-    for (let column = 0; column < sokobanCols; column += 1) {
-      const key = sokobanKey(row, column);
-      const tile = document.createElement("div");
-      tile.className = "sokoban-tile";
-      tile.dataset.row = String(row);
-      tile.dataset.column = String(column);
-
-      if (wallSet.has(key)) {
-        tile.classList.add("is-wall");
-      }
-
-      if (sokobanTargets.has(key)) {
-        tile.classList.add("is-target");
-      }
-
-      if (sokobanBoxes.has(key)) {
-        tile.classList.add("has-box");
-
-        if (sokobanTargets.has(key)) {
-          tile.classList.add("is-box-set");
-        }
-      }
-
-      if (sokobanPlayer.row === row && sokobanPlayer.column === column) {
-        tile.classList.add("has-player");
-      }
-
-      sokobanBoardElement.appendChild(tile);
-    }
+  if (flappyPipes[0]?.x + flappySettings.pipeWidth < -20) {
+    const lastPipe = flappyPipes[flappyPipes.length - 1];
+    flappyPipes.shift();
+    flappyPipes.push(createFlappyPipe(lastPipe.x + flappySettings.pipeSpacing));
   }
 
-  sokobanStepsElement.textContent = String(sokobanSteps);
-  sokobanTimeElement.textContent = String(sokobanSeconds);
+  if (isFlappyColliding()) {
+    flappyGameOver = true;
+  }
 }
 
-function startSokobanTimer() {
-  if (sokobanTimerId) {
+function isFlappyColliding() {
+  const birdTop = flappyBirdY - flappySettings.birdRadius;
+  const birdBottom = flappyBirdY + flappySettings.birdRadius;
+  const birdLeft = flappySettings.birdX - flappySettings.birdRadius;
+  const birdRight = flappySettings.birdX + flappySettings.birdRadius;
+  const ceiling = 0;
+  const floor = flappySettings.height - flappySettings.groundHeight;
+
+  if (birdTop <= ceiling || birdBottom >= floor) {
+    return true;
+  }
+
+  return flappyPipes.some((pipe) => {
+    const pipeLeft = pipe.x;
+    const pipeRight = pipe.x + flappySettings.pipeWidth;
+    const gapTop = pipe.topHeight;
+    const gapBottom = pipe.topHeight + flappySettings.pipeGap;
+    const overlapsX = birdRight > pipeLeft && birdLeft < pipeRight;
+    const hitsPipe = birdTop < gapTop || birdBottom > gapBottom;
+
+    return overlapsX && hitsPipe;
+  });
+}
+
+function finishFlappyGame() {
+  stopFlappyLoop();
+  flappyRunning = false;
+  flappyRestartButton.textContent = "再来一局";
+  flappyStatusText.textContent = text.flappyOver;
+  settleFlappyGame();
+}
+
+async function settleFlappyGame() {
+  if (!hasAccount() || flappySettled) {
     return;
   }
 
-  if (!sokobanStartedAt) {
-    sokobanStartedAt = Date.now();
-  }
-
-  sokobanTimerId = window.setInterval(() => {
-    sokobanSeconds = Math.floor((Date.now() - sokobanStartedAt) / 1000);
-    sokobanTimeElement.textContent = String(sokobanSeconds);
-  }, 1000);
-}
-
-function stopSokobanTimer() {
-  if (sokobanTimerId) {
-    window.clearInterval(sokobanTimerId);
-    sokobanTimerId = null;
-  }
-}
-
-function getSokobanDirection(key) {
-  const directions = {
-    ArrowLeft: { row: 0, column: -1 },
-    a: { row: 0, column: -1 },
-    A: { row: 0, column: -1 },
-    ArrowRight: { row: 0, column: 1 },
-    d: { row: 0, column: 1 },
-    D: { row: 0, column: 1 },
-    ArrowUp: { row: -1, column: 0 },
-    w: { row: -1, column: 0 },
-    W: { row: -1, column: 0 },
-    ArrowDown: { row: 1, column: 0 },
-    s: { row: 1, column: 0 },
-    S: { row: 1, column: 0 },
-  };
-
-  return directions[key] || null;
-}
-
-function moveSokoban(delta) {
-  if (!delta || sokobanWon || currentGame !== GAME_SOKOBAN) {
-    return;
-  }
-
-  const wallSet = new Set(sokobanWalls);
-  const next = {
-    row: sokobanPlayer.row + delta.row,
-    column: sokobanPlayer.column + delta.column,
-  };
-  const nextKey = sokobanKey(next.row, next.column);
-
-  if (!isSokobanInBounds(next.row, next.column) || wallSet.has(nextKey)) {
-    return;
-  }
-
-  const boxes = new Set(sokobanBoxes);
-
-  if (boxes.has(nextKey)) {
-    const boxNext = {
-      row: next.row + delta.row,
-      column: next.column + delta.column,
-    };
-    const boxNextKey = sokobanKey(boxNext.row, boxNext.column);
-
-    if (!isSokobanInBounds(boxNext.row, boxNext.column) || wallSet.has(boxNextKey) || boxes.has(boxNextKey)) {
-      return;
-    }
-
-    boxes.delete(nextKey);
-    boxes.add(boxNextKey);
-    sokobanBoxes = boxes;
-  }
-
-  startSokobanTimer();
-  sokobanPlayer = next;
-  sokobanSteps += 1;
-  renderSokobanBoard();
-  checkSokobanWin();
-}
-
-function isSokobanInBounds(row, column) {
-  return row >= 0 && row < sokobanRows && column >= 0 && column < sokobanCols;
-}
-
-function checkSokobanWin() {
-  const wonState = [...sokobanBoxes].every((box) => sokobanTargets.has(box));
-
-  if (!wonState) {
-    return;
-  }
-
-  sokobanWon = true;
-  stopSokobanTimer();
-  sokobanStatusText.textContent = text.sokobanWin;
-  settleSokobanGame("won");
-}
-
-async function settleSokobanGame(reason) {
-  if (!hasAccount() || sokobanSettled || !sokobanWon || sokobanSteps === 0) {
-    return;
-  }
-
-  sokobanSettled = true;
-  const seconds = sokobanStartedAt ? Math.floor((Date.now() - sokobanStartedAt) / 1000) : sokobanSeconds;
+  flappySettled = true;
+  const seconds = flappyStartedAt ? Math.floor((Date.now() - flappyStartedAt) / 1000) : 0;
 
   try {
-    const data = await apiRequest("/api/games/sokoban/results", {
+    const data = await apiRequest("/api/games/flappy/results", {
       method: "POST",
       body: JSON.stringify({
-        gameId: sokobanGameId,
-        won: sokobanWon,
-        level: sokobanLevelIndex,
-        steps: sokobanSteps,
+        gameId: flappyGameId,
+        score: flappyScore,
+        bestScore: flappyBest,
         seconds,
-        reason,
       }),
     });
 
     renderAccount(data.profile);
     await refreshLeaderboard(data.leaderboard);
-    sokobanStatusText.textContent = `本局获得 ${data.award.points} 积分。`;
+    flappyStatusText.textContent = `本局 ${flappyScore} 分，获得 ${data.award.points} 积分。`;
   } catch (error) {
-    sokobanStatusText.textContent = error.message;
-    sokobanSettled = false;
+    flappyStatusText.textContent = error.message;
+    flappySettled = false;
+  }
+}
+
+function renderFlappy() {
+  const context = flappyContext;
+  const width = flappySettings.width;
+  const height = flappySettings.height;
+  const floor = height - flappySettings.groundHeight;
+
+  context.clearRect(0, 0, width, height);
+  const sky = context.createLinearGradient(0, 0, 0, floor);
+  sky.addColorStop(0, "#a9d8f5");
+  sky.addColorStop(1, "#e8f6ee");
+  context.fillStyle = sky;
+  context.fillRect(0, 0, width, height);
+
+  drawFlappyClouds(context);
+  drawFlappyPipes(context, floor);
+  drawFlappyGround(context, floor, width, height);
+  drawFlappyBird(context);
+  drawFlappyOverlay(context);
+}
+
+function drawFlappyClouds(context) {
+  context.fillStyle = "rgba(255, 255, 255, 0.82)";
+
+  flappyClouds.forEach((cloud) => {
+    context.beginPath();
+    context.arc(cloud.x, cloud.y, cloud.size, 0, Math.PI * 2);
+    context.arc(cloud.x + cloud.size * 0.9, cloud.y + 4, cloud.size * 0.76, 0, Math.PI * 2);
+    context.arc(cloud.x - cloud.size * 0.82, cloud.y + 7, cloud.size * 0.62, 0, Math.PI * 2);
+    context.fill();
+  });
+}
+
+function drawFlappyPipes(context, floor) {
+  flappyPipes.forEach((pipe) => {
+    const gapBottom = pipe.topHeight + flappySettings.pipeGap;
+    drawPipe(context, pipe.x, 0, flappySettings.pipeWidth, pipe.topHeight, true);
+    drawPipe(context, pipe.x, gapBottom, flappySettings.pipeWidth, floor - gapBottom, false);
+  });
+}
+
+function drawPipe(context, x, y, width, height, isTop) {
+  if (height <= 0) {
+    return;
+  }
+
+  const capHeight = 18;
+  const pipeGradient = context.createLinearGradient(x, 0, x + width, 0);
+  pipeGradient.addColorStop(0, "#0f6f5d");
+  pipeGradient.addColorStop(0.45, "#1fa783");
+  pipeGradient.addColorStop(1, "#0b594e");
+  context.fillStyle = pipeGradient;
+  context.fillRect(x, y, width, height);
+  context.fillStyle = "rgba(255, 255, 255, 0.18)";
+  context.fillRect(x + 10, y + 8, 8, Math.max(0, height - 16));
+  context.fillStyle = "#0b594e";
+
+  if (isTop) {
+    context.fillRect(x - 6, y + height - capHeight, width + 12, capHeight);
+  } else {
+    context.fillRect(x - 6, y, width + 12, capHeight);
+  }
+}
+
+function drawFlappyGround(context, floor, width, height) {
+  context.fillStyle = "#dfb269";
+  context.fillRect(0, floor, width, height - floor);
+  context.fillStyle = "#187c68";
+  context.fillRect(0, floor, width, 8);
+  context.fillStyle = "rgba(255, 255, 255, 0.22)";
+
+  for (let x = -34 - flappyGroundOffset; x < width + 34; x += 34) {
+    context.fillRect(x, floor + 22, 18, 6);
+  }
+}
+
+function drawFlappyBird(context) {
+  const x = flappySettings.birdX;
+  const y = flappyBirdY;
+  const tilt = Math.max(-0.55, Math.min(0.72, flappyVelocity / 12));
+
+  context.save();
+  context.translate(x, y);
+  context.rotate(tilt);
+  context.fillStyle = "#f4c542";
+  context.beginPath();
+  context.ellipse(0, 0, 18, 15, 0, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#d68631";
+  context.beginPath();
+  context.ellipse(-8, 3, 11, 7, -0.45, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#ffffff";
+  context.beginPath();
+  context.arc(8, -5, 5, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#17212b";
+  context.beginPath();
+  context.arc(10, -5, 2, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#ef7d3b";
+  context.beginPath();
+  context.moveTo(17, -1);
+  context.lineTo(29, 4);
+  context.lineTo(17, 9);
+  context.closePath();
+  context.fill();
+  context.restore();
+}
+
+function drawFlappyOverlay(context) {
+  context.fillStyle = "rgba(24, 33, 42, 0.78)";
+  context.font = "900 42px Inter, Arial, sans-serif";
+  context.textAlign = "center";
+  context.fillText(String(flappyScore), flappySettings.width / 2, 72);
+
+  if (!flappyRunning && !flappyGameOver) {
+    context.font = "800 18px Inter, Arial, sans-serif";
+    context.fillText("点击开始", flappySettings.width / 2, flappySettings.height * 0.46);
+  }
+
+  if (flappyGameOver) {
+    context.fillStyle = "rgba(24, 33, 42, 0.58)";
+    context.fillRect(58, 202, flappySettings.width - 116, 106);
+    context.fillStyle = "#ffffff";
+    context.font = "900 26px Inter, Arial, sans-serif";
+    context.fillText("游戏结束", flappySettings.width / 2, 244);
+    context.font = "800 16px Inter, Arial, sans-serif";
+    context.fillText(`本局 ${flappyScore} 分`, flappySettings.width / 2, 276);
   }
 }
 
@@ -2178,23 +2100,13 @@ mineExpandButton.addEventListener("click", toggleMineModelExpanded);
 mineDifficultySelect.addEventListener("change", () => {
   setMineDifficulty(mineDifficultySelect.value);
 });
-sokobanRestartButton.addEventListener("click", () => startSokobanGame());
-sokobanLevelSelect.addEventListener("change", () => {
-  sokobanLevelIndex = Number(sokobanLevelSelect.value) || 0;
-  localStorage.setItem(sokobanLevelKey, String(sokobanLevelIndex));
-  startSokobanGame();
-});
-sokobanPadButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    const movesByName = {
-      up: { row: -1, column: 0 },
-      down: { row: 1, column: 0 },
-      left: { row: 0, column: -1 },
-      right: { row: 0, column: 1 },
-    };
+flappyRestartButton.addEventListener("click", () => {
+  if (flappyRunning) {
+    resetFlappyGame();
+    return;
+  }
 
-    moveSokoban(movesByName[button.dataset.sokobanMove]);
-  });
+  startFlappyGame();
 });
 messageButton.addEventListener("click", hideMessageAndContinue);
 gameCards.forEach((card) => {
@@ -2203,8 +2115,11 @@ gameCards.forEach((card) => {
 document.addEventListener("keydown", handleKeyDown);
 boardElement.addEventListener("touchstart", handleTouchStart, { passive: true });
 boardElement.addEventListener("touchend", handleTouchEnd);
-sokobanBoardElement.addEventListener("touchstart", handleSokobanTouchStart, { passive: true });
-sokobanBoardElement.addEventListener("touchend", handleSokobanTouchEnd);
+flappyCanvas.addEventListener("click", flap);
+flappyCanvas.addEventListener("touchstart", (event) => {
+  event.preventDefault();
+  flap();
+}, { passive: false });
 roomCodeInput.addEventListener("input", () => {
   roomCodeInput.value = roomCodeInput.value.toUpperCase();
 });
@@ -2229,13 +2144,11 @@ window.addEventListener("resize", () => {
 });
 
 setupBoardMarkup();
-setupSokobanLevels();
 mineDifficultySelect.value = mineDifficulty;
-sokobanLevelSelect.value = String(sokobanLevelIndex);
 setupMinesweeperMarkup();
 board = createEmptyBoard();
 mineBoard = createMineBoard();
 initializeMinesweeperBoard();
-startSokobanGame({ settlePrevious: false });
+resetFlappyGame();
 start2048Game({ notify: false, settlePrevious: false });
 loadSession();
