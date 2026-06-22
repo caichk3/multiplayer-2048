@@ -747,11 +747,18 @@ h2 {
     rotateX(var(--mine-model-x, -28deg))
     rotateY(var(--mine-model-y, 36deg));
   transition: transform 80ms linear;
+  will-change: transform;
 }
 
 .mine-cube {
   --cube-size: 32px;
   --cube-half: 16px;
+  --cube-saturation: 36%;
+  --front-lightness: 58%;
+  --right-lightness: 49%;
+  --left-lightness: 43%;
+  --top-lightness: 66%;
+  --bottom-lightness: 38%;
   position: absolute;
   left: calc(var(--cube-size) / -2);
   top: calc(var(--cube-size) / -2);
@@ -785,13 +792,14 @@ h2 {
 }
 
 .cube-face {
+  --face-lightness: var(--front-lightness);
   position: absolute;
   inset: 0;
   display: block;
   border: 1px solid rgba(24, 33, 42, 0.18);
   background:
     linear-gradient(135deg, rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0)),
-    hsl(var(--cube-hue, 176) 36% 58%);
+    hsl(var(--cube-hue, 176) var(--cube-saturation) var(--face-lightness));
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
   backface-visibility: hidden;
 }
@@ -803,52 +811,64 @@ h2 {
 }
 
 .mine-cube.has-number .cube-face {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0)),
-    hsl(var(--cube-hue, 176) 38% 64%);
+  --cube-saturation: 38%;
+  --front-lightness: 64%;
+  --right-lightness: 55%;
+  --left-lightness: 49%;
+  --top-lightness: 72%;
+  --bottom-lightness: 44%;
 }
 
 .mine-cube.has-flag .cube-face {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0)),
-    #3f7dc4;
+  --cube-saturation: 52%;
+  --front-lightness: 52%;
+  --right-lightness: 43%;
+  --left-lightness: 37%;
+  --top-lightness: 62%;
+  --bottom-lightness: 34%;
 }
 
 .mine-cube.has-mine-mark .cube-face {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0)),
-    #bb4b55;
+  --cube-saturation: 46%;
+  --front-lightness: 52%;
+  --right-lightness: 43%;
+  --left-lightness: 37%;
+  --top-lightness: 62%;
+  --bottom-lightness: 34%;
 }
 
 .cube-front {
+  --face-lightness: var(--front-lightness);
   transform: translateZ(var(--cube-half));
 }
 
 .cube-back {
+  --face-lightness: var(--left-lightness);
   transform: rotateY(180deg) translateZ(var(--cube-half));
 }
 
 .cube-right {
-  filter: brightness(0.84);
+  --face-lightness: var(--right-lightness);
   transform: rotateY(90deg) translateZ(var(--cube-half));
 }
 
 .cube-left {
-  filter: brightness(0.72);
+  --face-lightness: var(--left-lightness);
   transform: rotateY(-90deg) translateZ(var(--cube-half));
 }
 
 .cube-top {
-  filter: brightness(1.13);
+  --face-lightness: var(--top-lightness);
   transform: rotateX(90deg) translateZ(var(--cube-half));
 }
 
 .cube-bottom {
-  filter: brightness(0.64);
+  --face-lightness: var(--bottom-lightness);
   transform: rotateX(-90deg) translateZ(var(--cube-half));
 }
 
-.face-mark {
+.cube-face::after {
+  content: var(--cube-mark, "");
   position: absolute;
   left: 50%;
   top: 50%;
@@ -866,46 +886,43 @@ h2 {
   pointer-events: none;
 }
 
-.face-mark[data-mark="none"] {
-  display: none;
-}
-
-.mine-cube.is-number-1 .face-mark {
+.mine-cube.is-number-1 .cube-face::after {
   color: #2c6fbb;
 }
 
-.mine-cube.is-number-2 .face-mark {
+.mine-cube.is-number-2 .cube-face::after {
   color: #187c68;
 }
 
-.mine-cube.is-number-3 .face-mark {
+.mine-cube.is-number-3 .cube-face::after {
   color: #d68631;
 }
 
-.mine-cube.is-number-4 .face-mark,
-.mine-cube.is-number-5 .face-mark,
-.mine-cube.is-number-6 .face-mark,
-.mine-cube.is-number-7 .face-mark,
-.mine-cube.is-number-8 .face-mark {
+.mine-cube.is-number-4 .cube-face::after,
+.mine-cube.is-number-5 .cube-face::after,
+.mine-cube.is-number-6 .cube-face::after,
+.mine-cube.is-number-7 .cube-face::after,
+.mine-cube.is-number-8 .cube-face::after {
   color: #9d2f3b;
 }
 
-.mine-cube.has-flag .face-mark::before {
+.mine-cube.has-flag .cube-face::before {
   content: "";
   position: absolute;
-  left: 36%;
+  left: 40%;
   top: 13%;
   width: max(2px, calc(var(--cube-size) * 0.075));
   height: 74%;
   border-radius: 999px;
   background: #ffffff;
   box-shadow: 0 1px 4px rgba(24, 33, 42, 0.3);
+  transform: translateZ(1px);
 }
 
-.mine-cube.has-flag .face-mark::after {
+.mine-cube.has-flag .cube-face::after {
   content: "";
   position: absolute;
-  left: 42%;
+  left: 46%;
   top: 14%;
   width: 42%;
   height: 34%;
@@ -913,38 +930,31 @@ h2 {
   background: #d94f5b;
   clip-path: polygon(0 0, 100% 12%, 100% 82%, 0 70%);
   box-shadow: 0 2px 8px rgba(24, 33, 42, 0.24);
+  transform: translateZ(1px);
 }
 
-.mine-cube.has-mine-mark .face-mark {
+.mine-cube.has-mine-mark .cube-face::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
   background: #17212b;
   width: calc(var(--cube-size) * 0.42);
   height: calc(var(--cube-size) * 0.42);
+  border-radius: 999px;
   box-shadow:
     0 0 0 max(2px, calc(var(--cube-size) * 0.06)) rgba(255, 255, 255, 0.86),
     0 2px 8px rgba(24, 33, 42, 0.28);
+  transform: translate(-50%, -50%);
 }
 
-.mine-cube.has-mine-mark .face-mark::before,
-.mine-cube.has-mine-mark .face-mark::after {
+.mine-cube.has-mine-mark .cube-face::before {
   content: "";
   position: absolute;
-  display: block;
-}
-
-.mine-cube.has-mine-mark .face-mark::before {
-  left: 24%;
-  top: 24%;
+  left: 58%;
+  top: 20%;
   width: 22%;
-  height: 22%;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
-}
-
-.mine-cube.has-mine-mark .face-mark::after {
-  left: 62%;
-  top: -24%;
-  width: 42%;
-  height: 32%;
+  height: 18%;
   border-top: max(2px, calc(var(--cube-size) * 0.055)) solid #17212b;
   border-right: max(2px, calc(var(--cube-size) * 0.055)) solid #17212b;
   border-radius: 0 999px 0 0;
@@ -957,6 +967,33 @@ h2 {
   box-shadow:
     inset 0 0 0 2px rgba(255, 255, 255, 0.46),
     0 0 10px rgba(24, 124, 104, 0.24);
+}
+
+@media (hover: none), (max-width: 720px) {
+  .mine-model-space {
+    transition: none;
+  }
+
+  .mine-cube {
+    transition: none;
+  }
+
+  .cube-face,
+  .mine-cube.has-mark .cube-face,
+  .mine-cube:hover .cube-face,
+  .mine-cube:focus-visible .cube-face {
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  }
+
+  .mine-model-stage::after {
+    display: none;
+  }
+
+  .mine-cube.has-flag .cube-face::before,
+  .mine-cube.has-flag .cube-face::after,
+  .mine-cube.has-mine-mark .cube-face::after {
+    box-shadow: none;
+  }
 }
 
 .player-row {

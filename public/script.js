@@ -147,6 +147,7 @@ let mineModelDragX = 0;
 let mineModelDragY = 0;
 let mineModelDragDistance = 0;
 let mineModelExpanded = false;
+let mineModelRotationFrameId = null;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
@@ -921,6 +922,17 @@ function applyMineModelRotation() {
   mineModelSpace.style.setProperty("--mine-model-y", `${mineModelRotationY}deg`);
 }
 
+function scheduleMineModelRotation() {
+  if (mineModelRotationFrameId) {
+    return;
+  }
+
+  mineModelRotationFrameId = window.requestAnimationFrame(() => {
+    mineModelRotationFrameId = null;
+    applyMineModelRotation();
+  });
+}
+
 function renderMineExpandButton() {
   mineExpandButton.textContent = mineModelExpanded ? "合拢模型" : "分层展开";
   mineExpandButton.setAttribute("aria-pressed", String(mineModelExpanded));
@@ -979,12 +991,6 @@ function createMineCube(layer, row, column, cell, config, cubeSize) {
   ["front", "back", "right", "left", "top", "bottom"].forEach((faceName) => {
     const face = document.createElement("span");
     face.className = `cube-face cube-${faceName}`;
-
-    const marker = document.createElement("span");
-    marker.className = "face-mark";
-    marker.setAttribute("aria-hidden", "true");
-    face.appendChild(marker);
-
     cube.appendChild(face);
   });
 
@@ -1010,6 +1016,7 @@ function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
   cube.style.setProperty("--cube-y", `${position.y}px`);
   cube.style.setProperty("--cube-z", `${position.z}px`);
   cube.style.setProperty("--cube-hue", String(176 + layer * 17));
+  cube.style.setProperty("--cube-mark", `"${mark.text}"`);
   cube.classList.toggle("has-mark", mark.type !== "none");
   cube.classList.toggle("has-number", mark.type === "number");
   cube.classList.toggle("has-flag", mark.type === "flag");
@@ -1037,11 +1044,6 @@ function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
     cube.classList.add("is-mine");
     ariaLabel = `${ariaLabel}，未翻开的雷`;
   }
-
-  cube.querySelectorAll(".face-mark").forEach((marker) => {
-    marker.dataset.mark = mark.type;
-    marker.textContent = mark.text;
-  });
 
   cube.setAttribute("aria-label", ariaLabel);
 }
@@ -1591,7 +1593,7 @@ function moveMineModelDrag(clientX, clientY) {
   mineModelDragDistance += Math.abs(deltaX) + Math.abs(deltaY);
   mineModelRotationY += deltaX * 0.55;
   mineModelRotationX = Math.max(-74, Math.min(28, mineModelRotationX - deltaY * 0.45));
-  applyMineModelRotation();
+  scheduleMineModelRotation();
 }
 
 function endMineModelDrag() {
