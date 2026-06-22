@@ -35,9 +35,9 @@ const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"))
 const roomPanel = document.querySelector("#room-panel");
 const game2048Panel = document.querySelector("#game-2048");
 const gameMinesweeperPanel = document.querySelector("#game-minesweeper3d");
-const minefieldElement = document.querySelector("#minefield");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
+const mineExpandButton = document.querySelector("#mine-expand-button");
 const mineDifficultySelect = document.querySelector("#mine-difficulty");
 const mineRemainingElement = document.querySelector("#mine-remaining");
 const mineTimeElement = document.querySelector("#mine-time");
@@ -45,10 +45,8 @@ const mineRevealedElement = document.querySelector("#mine-revealed");
 const mineFlagsElement = document.querySelector("#mine-flags");
 const mineLayersElement = document.querySelector("#mine-layers");
 const mineShapeSizeElement = document.querySelector("#mine-shape-size");
-const mineViewerStage = document.querySelector("#mine-viewer-stage");
-const mineViewerSpace = document.querySelector("#mine-viewer-space");
-const mineViewerEmpty = document.querySelector("#mine-viewer-empty");
-const mineViewerCount = document.querySelector("#mine-viewer-count");
+const mineModelStage = document.querySelector("#mine-model-stage");
+const mineModelSpace = document.querySelector("#mine-model-space");
 
 const socket = io();
 const GAME_2048 = "2048";
@@ -102,7 +100,7 @@ const text = {
   wonStatus: "已经合成 2048，可以继续玩。",
   overTitle: "游戏结束",
   overStatus: "没有可移动的方块了，积分已结算。",
-  minesReady: "左键翻开，右键或长按插旗。",
+  minesReady: "拖动旋转模型，点立方体翻开，右键或长按插旗。",
   minesWin: "3D 扫雷完成，积分已结算。",
   minesLose: "踩到雷了，积分已结算。",
 };
@@ -142,11 +140,13 @@ let mineTouchTimerId = null;
 let mineTouchTarget = null;
 let mineTouchLongPressed = false;
 let mineIgnoreClickUntil = 0;
-let mineViewerRotationX = -26;
-let mineViewerRotationY = 38;
-let mineViewerDragging = false;
-let mineViewerDragX = 0;
-let mineViewerDragY = 0;
+let mineModelRotationX = -28;
+let mineModelRotationY = 36;
+let mineModelDragging = false;
+let mineModelDragX = 0;
+let mineModelDragY = 0;
+let mineModelDragDistance = 0;
+let mineModelExpanded = false;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
@@ -207,48 +207,9 @@ function setupBoardMarkup() {
 }
 
 function setupMinesweeperMarkup() {
-  const config = getMineDifficulty();
-  minefieldElement.innerHTML = "";
-
-  for (let layer = 0; layer < config.layers; layer += 1) {
-    const layerWrap = document.createElement("section");
-    layerWrap.className = "mine-layer";
-
-    const head = document.createElement("div");
-    head.className = "mine-layer-head";
-    head.innerHTML = `<span>第 ${layer + 1} 层</span><span>${config.rows} x ${config.cols}</span>`;
-
-    const grid = document.createElement("div");
-    grid.className = "mine-grid";
-    grid.style.setProperty("--mine-cols", String(config.cols));
-
-    for (let row = 0; row < config.rows; row += 1) {
-      for (let column = 0; column < config.cols; column += 1) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "mine-cell";
-        button.dataset.layer = String(layer);
-        button.dataset.row = String(row);
-        button.dataset.column = String(column);
-        button.setAttribute(
-          "aria-label",
-          `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`,
-        );
-        grid.appendChild(button);
-      }
-    }
-
-    layerWrap.append(head, grid);
-    minefieldElement.appendChild(layerWrap);
-  }
-}
-
-function setupMineViewerMarkup() {
-  mineViewerSpace.innerHTML = "";
-  const box = document.createElement("div");
-  box.className = "mine-space-box";
-  mineViewerSpace.appendChild(box);
-  applyMineViewerRotation();
+  mineModelSpace.innerHTML = "";
+  applyMineModelRotation();
+  renderMineExpandButton();
 }
 
 function hasAccount() {
@@ -955,62 +916,115 @@ function renderMinesweeperStats() {
   mineShapeSizeElement.textContent = String(mineActiveCells);
 }
 
-function applyMineViewerRotation() {
-  mineViewerSpace.style.setProperty("--mine-viewer-x", `${mineViewerRotationX}deg`);
-  mineViewerSpace.style.setProperty("--mine-viewer-y", `${mineViewerRotationY}deg`);
+function applyMineModelRotation() {
+  mineModelSpace.style.setProperty("--mine-model-x", `${mineModelRotationX}deg`);
+  mineModelSpace.style.setProperty("--mine-model-y", `${mineModelRotationY}deg`);
 }
 
-function renderMineViewer() {
-  const config = getMineDifficulty();
-  const existingMarkers = mineViewerSpace.querySelectorAll(".mine-flag-marker");
-  existingMarkers.forEach((marker) => marker.remove());
+function renderMineExpandButton() {
+  mineExpandButton.textContent = mineModelExpanded ? "合拢模型" : "分层展开";
+  mineExpandButton.setAttribute("aria-pressed", String(mineModelExpanded));
+  mineModelStage.classList.toggle("is-expanded", mineModelExpanded);
+}
 
-  let flagCount = 0;
-  const xRange = 132;
-  const yRange = 132;
-  const zRange = 132;
+function getMineCubeSize(config) {
+  const stageWidth =
+    mineModelStage.getBoundingClientRect().width || Math.min(window.innerWidth - 48, 620);
+  const gridWidth = Math.max(config.rows, config.cols, config.layers);
+  return Math.max(24, Math.min(36, Math.floor((stageWidth - 80) / gridWidth)));
+}
 
-  for (let layer = 0; layer < config.layers; layer += 1) {
-    for (let row = 0; row < config.rows; row += 1) {
-      for (let column = 0; column < config.cols; column += 1) {
-        const cell = getMineCell(layer, row, column);
+function getMineCubePosition(layer, row, column, config, cubeSize) {
+  const gap = Math.max(2, Math.round(cubeSize * 0.08));
+  const step = cubeSize + gap;
+  const layerMiddle = (config.layers - 1) / 2;
+  const rowMiddle = (config.rows - 1) / 2;
+  const columnMiddle = (config.cols - 1) / 2;
+  const layerOffset = layer - layerMiddle;
+  const layerLift = mineModelExpanded ? cubeSize * 1.45 : 0;
+  const layerSlide = mineModelExpanded ? cubeSize * 0.62 : 0;
 
-        if (!cell?.active || !cell.flagged) {
-          continue;
-        }
+  return {
+    x: (column - columnMiddle) * step,
+    y: (layerMiddle - layer) * step - layerOffset * layerLift,
+    z: (row - rowMiddle) * step + layerOffset * layerSlide,
+  };
+}
 
-        flagCount += 1;
-        const marker = document.createElement("div");
-        marker.className = "mine-flag-marker";
-        marker.style.setProperty(
-          "--flag-x",
-          `${normalizeToRange(column, config.cols, xRange)}px`,
-        );
-        marker.style.setProperty("--flag-y", `${normalizeToRange(row, config.rows, yRange)}px`);
-        marker.style.setProperty(
-          "--flag-z",
-          `${normalizeToRange(layer, config.layers, zRange)}px`,
-        );
-        marker.title = `第 ${layer + 1} 层 ${row + 1} 行 ${column + 1} 列`;
+function getMineCellLabel(cell, revealAllMines) {
+  if (cell.open && cell.mine) {
+    return "X";
+  }
 
-        const label = document.createElement("span");
-        label.textContent = `L${layer + 1}`;
-        marker.appendChild(label);
-        mineViewerSpace.appendChild(marker);
-      }
+  if (cell.open && cell.adjacent > 0) {
+    return String(cell.adjacent);
+  }
+
+  if (cell.flagged) {
+    return "";
+  }
+
+  if (revealAllMines && cell.mine) {
+    return "M";
+  }
+
+  return "";
+}
+
+function createMineCube(layer, row, column, cell, config, cubeSize) {
+  const cube = document.createElement("button");
+  const revealAllMines = mineGameOver && !mineGameWon;
+  const labelText = getMineCellLabel(cell, revealAllMines);
+  const position = getMineCubePosition(layer, row, column, config, cubeSize);
+
+  cube.type = "button";
+  cube.className = "mine-cube";
+  cube.dataset.layer = String(layer);
+  cube.dataset.row = String(row);
+  cube.dataset.column = String(column);
+  cube.style.setProperty("--cube-size", `${cubeSize}px`);
+  cube.style.setProperty("--cube-half", `${cubeSize / 2}px`);
+  cube.style.setProperty("--cube-x", `${position.x}px`);
+  cube.style.setProperty("--cube-y", `${position.y}px`);
+  cube.style.setProperty("--cube-z", `${position.z}px`);
+  cube.style.setProperty("--cube-hue", String(176 + layer * 17));
+  cube.setAttribute("aria-label", `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`);
+
+  if (cell.open) {
+    cube.classList.add("is-open");
+
+    if (cell.mine) {
+      cube.classList.add("is-mine-revealed");
+      cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，雷`);
+    } else if (cell.adjacent > 0) {
+      cube.classList.add(`is-number-${Math.min(cell.adjacent, 8)}`);
+      cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，数字 ${cell.adjacent}`);
+    } else {
+      cube.classList.add("is-zero");
+      cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，空`);
     }
+  } else if (cell.flagged) {
+    cube.classList.add("is-flagged");
+    cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，已插旗`);
   }
 
-  mineViewerCount.textContent = String(flagCount);
-  mineViewerEmpty.hidden = flagCount > 0;
-}
-
-function normalizeToRange(value, total, range) {
-  if (total <= 1) {
-    return 0;
+  if (revealAllMines && cell.mine && !cell.open) {
+    cube.classList.add("is-mine");
+    cube.setAttribute("aria-label", `${cube.getAttribute("aria-label")}，未翻开的雷`);
   }
 
-  return (value / (total - 1) - 0.5) * range;
+  ["front", "back", "right", "left", "top", "bottom"].forEach((faceName) => {
+    const face = document.createElement("span");
+    face.className = `cube-face cube-${faceName}`;
+    cube.appendChild(face);
+  });
+
+  const label = document.createElement("span");
+  label.className = "cube-label";
+  label.textContent = labelText;
+  cube.appendChild(label);
+
+  return cube;
 }
 
 function startMineTimer() {
@@ -1188,50 +1202,34 @@ function getMineCell(layer, row, column) {
 }
 
 function renderMinesweeperBoard() {
-  const buttons = minefieldElement.querySelectorAll(".mine-cell");
+  const config = getMineDifficulty();
+  const fragment = document.createDocumentFragment();
+  const cubeSize = getMineCubeSize(config);
 
-  buttons.forEach((button) => {
-    const layer = Number(button.dataset.layer);
-    const row = Number(button.dataset.row);
-    const column = Number(button.dataset.column);
-    const cell = getMineCell(layer, row, column);
+  mineModelSpace.innerHTML = "";
+  mineModelSpace.style.setProperty("--cube-size", `${cubeSize}px`);
+  mineModelSpace.style.setProperty("--cube-half", `${cubeSize / 2}px`);
+  mineModelSpace.classList.toggle("is-expanded", mineModelExpanded);
 
-    if (!cell) {
-      return;
-    }
+  for (let layer = 0; layer < config.layers; layer += 1) {
+    for (let row = 0; row < config.rows; row += 1) {
+      for (let column = 0; column < config.cols; column += 1) {
+        const cell = getMineCell(layer, row, column);
 
-    button.className = "mine-cell";
-    button.disabled = mineGameOver || !cell.active;
-    button.textContent = "";
+        if (!cell?.active) {
+          continue;
+        }
 
-    if (!cell.active) {
-      button.classList.add("is-void");
-      button.setAttribute("aria-label", "空洞");
-      return;
-    }
-
-    if (cell.open) {
-      button.classList.add("is-open");
-
-      if (cell.mine) {
-        button.classList.add("is-mine-revealed");
-        button.textContent = "X";
-      } else if (cell.adjacent > 0) {
-        button.textContent = String(cell.adjacent);
+        fragment.appendChild(createMineCube(layer, row, column, cell, config, cubeSize));
       }
-    } else if (cell.flagged) {
-      button.classList.add("is-flagged");
-      button.textContent = "F";
     }
+  }
 
-    if (mineGameOver && cell.mine && !cell.open) {
-      button.classList.add("is-mine");
-      button.textContent = "M";
-    }
-  });
+  mineModelSpace.appendChild(fragment);
+  applyMineModelRotation();
+  renderMineExpandButton();
 
   renderMinesweeperStats();
-  renderMineViewer();
 
   mineStatusText.textContent = mineGameOver
     ? mineGameWon
@@ -1356,6 +1354,7 @@ function startMinesweeperGame(options = {}) {
     settleMinesweeperGame("restart");
   }
 
+  mineModelExpanded = false;
   initializeMinesweeperBoard();
 
   if (options.notify !== false) {
@@ -1407,9 +1406,13 @@ function handleMineClick(event) {
     return;
   }
 
-  const button = event.target.closest(".mine-cell");
+  if (mineModelDragDistance > 6) {
+    return;
+  }
 
-  if (!button || button.disabled) {
+  const button = event.target.closest(".mine-cube");
+
+  if (!button) {
     return;
   }
 
@@ -1424,7 +1427,7 @@ function handleMineContextMenu(event) {
     return;
   }
 
-  const button = event.target.closest(".mine-cell");
+  const button = event.target.closest(".mine-cube");
 
   if (!button) {
     return;
@@ -1452,9 +1455,13 @@ function handleMineTouchStart(event) {
     return;
   }
 
-  const button = event.target.closest(".mine-cell");
+  const touch = event.changedTouches[0];
+  startMineModelDrag(touch.clientX, touch.clientY);
+
+  const button = event.target.closest(".mine-cube");
 
   if (!button) {
+    clearMineTouchHold();
     return;
   }
 
@@ -1463,6 +1470,11 @@ function handleMineTouchStart(event) {
   mineTouchLongPressed = false;
   mineTouchTimerId = window.setTimeout(() => {
     mineTouchTimerId = null;
+
+    if (mineModelDragDistance > 6) {
+      return;
+    }
+
     mineTouchLongPressed = true;
     const layer = Number(button.dataset.layer);
     const row = Number(button.dataset.row);
@@ -1477,7 +1489,9 @@ function handleMineTouchEnd(event) {
     return;
   }
 
-  const button = event.target.closest(".mine-cell") || mineTouchTarget;
+  const wasDragged = mineModelDragDistance > 6;
+  const button = event.target.closest(".mine-cube") || mineTouchTarget;
+  endMineModelDrag();
 
   if (!button) {
     clearMineTouchHold();
@@ -1496,7 +1510,7 @@ function handleMineTouchEnd(event) {
     return;
   }
 
-  if (Date.now() >= mineIgnoreClickUntil) {
+  if (!wasDragged && Date.now() >= mineIgnoreClickUntil) {
     const layer = Number(button.dataset.layer);
     const row = Number(button.dataset.row);
     const column = Number(button.dataset.column);
@@ -1507,55 +1521,68 @@ function handleMineTouchEnd(event) {
   mineTouchTarget = null;
 }
 
-function handleMineTouchMove() {
-  clearMineTouchHold();
+function handleMineTouchMove(event) {
+  const touch = event.changedTouches[0];
+  moveMineModelDrag(touch.clientX, touch.clientY);
+
+  if (mineModelDragDistance > 6) {
+    clearMineTouchHold();
+  }
 }
 
 function handleMineTouchCancel() {
   clearMineTouchHold();
+  endMineModelDrag();
 }
 
-function startMineViewerDrag(clientX, clientY) {
-  mineViewerDragging = true;
-  mineViewerDragX = clientX;
-  mineViewerDragY = clientY;
+function startMineModelDrag(clientX, clientY) {
+  mineModelDragging = true;
+  mineModelDragX = clientX;
+  mineModelDragY = clientY;
+  mineModelDragDistance = 0;
+  mineModelStage.classList.add("is-dragging");
 }
 
-function moveMineViewerDrag(clientX, clientY) {
-  if (!mineViewerDragging) {
+function moveMineModelDrag(clientX, clientY) {
+  if (!mineModelDragging) {
     return;
   }
 
-  const deltaX = clientX - mineViewerDragX;
-  const deltaY = clientY - mineViewerDragY;
-  mineViewerDragX = clientX;
-  mineViewerDragY = clientY;
-  mineViewerRotationY += deltaX * 0.55;
-  mineViewerRotationX = Math.max(-72, Math.min(24, mineViewerRotationX - deltaY * 0.45));
-  applyMineViewerRotation();
+  const deltaX = clientX - mineModelDragX;
+  const deltaY = clientY - mineModelDragY;
+  mineModelDragX = clientX;
+  mineModelDragY = clientY;
+  mineModelDragDistance += Math.abs(deltaX) + Math.abs(deltaY);
+  mineModelRotationY += deltaX * 0.55;
+  mineModelRotationX = Math.max(-74, Math.min(28, mineModelRotationX - deltaY * 0.45));
+  applyMineModelRotation();
 }
 
-function endMineViewerDrag() {
-  mineViewerDragging = false;
+function endMineModelDrag() {
+  if (mineModelDragDistance > 6) {
+    mineIgnoreClickUntil = Date.now() + 180;
+  }
+
+  mineModelDragging = false;
+  mineModelStage.classList.remove("is-dragging");
 }
 
-function handleMineViewerPointerDown(event) {
+function handleMineModelPointerDown(event) {
+  if (event.button !== 0) {
+    return;
+  }
+
   event.preventDefault();
-  startMineViewerDrag(event.clientX, event.clientY);
+  startMineModelDrag(event.clientX, event.clientY);
 }
 
-function handleMineViewerPointerMove(event) {
-  moveMineViewerDrag(event.clientX, event.clientY);
+function handleMineModelPointerMove(event) {
+  moveMineModelDrag(event.clientX, event.clientY);
 }
 
-function handleMineViewerTouchStart(event) {
-  const touch = event.changedTouches[0];
-  startMineViewerDrag(touch.clientX, touch.clientY);
-}
-
-function handleMineViewerTouchMove(event) {
-  const touch = event.changedTouches[0];
-  moveMineViewerDrag(touch.clientX, touch.clientY);
+function toggleMineModelExpanded() {
+  mineModelExpanded = !mineModelExpanded;
+  renderMinesweeperBoard();
 }
 
 async function copyRoomCode() {
@@ -1602,6 +1629,7 @@ joinRoomButton.addEventListener("click", joinRoom);
 copyRoomButton.addEventListener("click", copyRoomCode);
 restartButton.addEventListener("click", () => start2048Game());
 mineRestartButton.addEventListener("click", () => startMinesweeperGame());
+mineExpandButton.addEventListener("click", toggleMineModelExpanded);
 mineDifficultySelect.addEventListener("change", () => {
   setMineDifficulty(mineDifficultySelect.value);
 });
@@ -1615,22 +1643,22 @@ boardElement.addEventListener("touchend", handleTouchEnd);
 roomCodeInput.addEventListener("input", () => {
   roomCodeInput.value = roomCodeInput.value.toUpperCase();
 });
-minefieldElement.addEventListener("click", handleMineClick);
-minefieldElement.addEventListener("contextmenu", handleMineContextMenu);
-minefieldElement.addEventListener("touchstart", handleMineTouchStart, { passive: true });
-minefieldElement.addEventListener("touchend", handleMineTouchEnd);
-minefieldElement.addEventListener("touchmove", handleMineTouchMove, { passive: true });
-minefieldElement.addEventListener("touchcancel", handleMineTouchCancel);
-mineViewerStage.addEventListener("mousedown", handleMineViewerPointerDown);
-document.addEventListener("mousemove", handleMineViewerPointerMove);
-document.addEventListener("mouseup", endMineViewerDrag);
-mineViewerStage.addEventListener("touchstart", handleMineViewerTouchStart, { passive: true });
-mineViewerStage.addEventListener("touchmove", handleMineViewerTouchMove, { passive: true });
-mineViewerStage.addEventListener("touchend", endMineViewerDrag);
-mineViewerStage.addEventListener("touchcancel", endMineViewerDrag);
+mineModelStage.addEventListener("click", handleMineClick);
+mineModelStage.addEventListener("contextmenu", handleMineContextMenu);
+mineModelStage.addEventListener("mousedown", handleMineModelPointerDown);
+document.addEventListener("mousemove", handleMineModelPointerMove);
+document.addEventListener("mouseup", endMineModelDrag);
+mineModelStage.addEventListener("touchstart", handleMineTouchStart, { passive: true });
+mineModelStage.addEventListener("touchend", handleMineTouchEnd);
+mineModelStage.addEventListener("touchmove", handleMineTouchMove, { passive: true });
+mineModelStage.addEventListener("touchcancel", handleMineTouchCancel);
+window.addEventListener("resize", () => {
+  if (mineBoard.length > 0) {
+    renderMinesweeperBoard();
+  }
+});
 
 setupBoardMarkup();
-setupMineViewerMarkup();
 mineDifficultySelect.value = mineDifficulty;
 setupMinesweeperMarkup();
 board = createEmptyBoard();

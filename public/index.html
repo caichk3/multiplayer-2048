@@ -90,7 +90,7 @@
           <button class="game-card" type="button" data-game="minesweeper3d">
             <span class="game-badge">可玩</span>
             <h3>3D 扫雷</h3>
-            <p>随机形状 · 难度可调 · 26 邻域判断</p>
+            <p>立体模型 · 分层展开 · 26 邻域判断</p>
           </button>
         </div>
       </section>
@@ -189,6 +189,9 @@
                 <option value="hard">困难</option>
                 <option value="expert">专家</option>
               </select>
+              <button id="mine-expand-button" class="secondary-button" type="button" aria-pressed="false">
+                分层展开
+              </button>
               <button id="mine-restart-button" type="button">重新开局</button>
             </div>
           </div>
@@ -212,24 +215,10 @@
             </div>
           </div>
 
-          <div class="minesweeper-layout">
-            <div class="minefield-wrap">
-              <div id="minefield" class="minefield" aria-label="3D 扫雷棋盘"></div>
+          <div class="mine-model-shell">
+            <div id="mine-model-stage" class="mine-model-stage" aria-label="3D 扫雷立体模型">
+              <div id="mine-model-space" class="mine-model-space"></div>
             </div>
-
-            <aside class="mine-viewer" aria-label="旗子 3D 视图">
-              <div class="mine-viewer-head">
-                <div>
-                  <p class="eyebrow">Flag View</p>
-                  <h3>旗子视图</h3>
-                </div>
-                <span id="mine-viewer-count">0</span>
-              </div>
-              <div id="mine-viewer-stage" class="mine-viewer-stage">
-                <div id="mine-viewer-space" class="mine-viewer-space"></div>
-                <p id="mine-viewer-empty" class="mine-viewer-empty">插旗后会显示在这里</p>
-              </div>
-            </aside>
           </div>
         </section>
 
