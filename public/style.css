@@ -772,18 +772,16 @@ h2 {
     rotateX(0.001deg);
   transform-style: preserve-3d;
   transition:
-    transform 260ms ease,
-    filter 160ms ease;
+    transform 260ms ease;
 }
 
 .mine-cube:hover,
 .mine-cube:focus-visible {
-  filter: brightness(1.06) saturate(1.08);
+  z-index: 2;
 }
 
 .mine-cube:focus-visible {
-  outline: 3px solid rgba(24, 124, 104, 0.38);
-  outline-offset: 7px;
+  outline: 0;
 }
 
 .cube-face {
@@ -798,13 +796,28 @@ h2 {
   backface-visibility: hidden;
 }
 
-.mine-cube.is-open .cube-front,
-.mine-cube.is-flagged .cube-front,
-.mine-cube.is-mine .cube-front,
-.mine-cube.is-mine-revealed .cube-front {
+.mine-cube.has-mark .cube-face {
   box-shadow:
-    inset 0 0 0 2px rgba(255, 255, 255, 0.34),
-    inset 0 0 18px rgba(255, 255, 255, 0.18);
+    inset 0 0 0 2px rgba(255, 255, 255, 0.28),
+    inset 0 0 18px rgba(255, 255, 255, 0.14);
+}
+
+.mine-cube.has-number .cube-face {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0)),
+    hsl(var(--cube-hue, 176) 38% 64%);
+}
+
+.mine-cube.has-flag .cube-face {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0)),
+    #3f7dc4;
+}
+
+.mine-cube.has-mine-mark .cube-face {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0)),
+    #bb4b55;
 }
 
 .cube-front {
@@ -835,73 +848,115 @@ h2 {
   transform: rotateX(-90deg) translateZ(var(--cube-half));
 }
 
-.cube-label {
+.face-mark {
   position: absolute;
   left: 50%;
   top: 50%;
-  z-index: 2;
   display: grid;
   place-items: center;
-  width: calc(var(--cube-size) * 0.72);
-  height: calc(var(--cube-size) * 0.72);
+  width: calc(var(--cube-size) * 0.68);
+  height: calc(var(--cube-size) * 0.68);
   border-radius: 999px;
+  color: #17212b;
+  font-size: calc(var(--cube-size) * 0.48);
+  font-weight: 900;
+  line-height: 1;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.38);
-  transform: translate(-50%, -50%) translateZ(calc(var(--cube-half) + 1px));
+  transform: translate(-50%, -50%);
   pointer-events: none;
 }
 
-.mine-cube.is-number-1 .cube-label {
+.face-mark[data-mark="none"] {
+  display: none;
+}
+
+.mine-cube.is-number-1 .face-mark {
   color: #2c6fbb;
 }
 
-.mine-cube.is-number-2 .cube-label {
+.mine-cube.is-number-2 .face-mark {
   color: #187c68;
 }
 
-.mine-cube.is-number-3 .cube-label {
+.mine-cube.is-number-3 .face-mark {
   color: #d68631;
 }
 
-.mine-cube.is-number-4 .cube-label,
-.mine-cube.is-number-5 .cube-label,
-.mine-cube.is-number-6 .cube-label,
-.mine-cube.is-number-7 .cube-label,
-.mine-cube.is-number-8 .cube-label {
-  color: #ba3f4a;
+.mine-cube.is-number-4 .face-mark,
+.mine-cube.is-number-5 .face-mark,
+.mine-cube.is-number-6 .face-mark,
+.mine-cube.is-number-7 .face-mark,
+.mine-cube.is-number-8 .face-mark {
+  color: #9d2f3b;
 }
 
-.mine-cube.is-flagged .cube-label {
-  color: #ffffff;
-  text-shadow: 0 1px 5px rgba(24, 33, 42, 0.28);
+.mine-cube.has-flag .face-mark::before {
+  content: "";
+  position: absolute;
+  left: 36%;
+  top: 13%;
+  width: max(2px, calc(var(--cube-size) * 0.075));
+  height: 74%;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(24, 33, 42, 0.3);
 }
 
-.mine-cube.is-flagged .cube-label::before {
+.mine-cube.has-flag .face-mark::after {
   content: "";
   position: absolute;
   left: 42%;
-  top: 12%;
-  width: max(2px, calc(var(--cube-size) * 0.07));
-  height: 72%;
-  border-radius: 999px;
-  background: #17212b;
-}
-
-.mine-cube.is-flagged .cube-label::after {
-  content: "";
-  position: absolute;
-  left: 47%;
-  top: 13%;
+  top: 14%;
   width: 42%;
-  height: 32%;
-  border-radius: 2px;
+  height: 34%;
+  border-radius: 2px 3px 3px 2px;
   background: #d94f5b;
+  clip-path: polygon(0 0, 100% 12%, 100% 82%, 0 70%);
   box-shadow: 0 2px 8px rgba(24, 33, 42, 0.24);
 }
 
-.mine-cube.is-mine .cube-label,
-.mine-cube.is-mine-revealed .cube-label {
-  color: #ba3f4a;
-  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.4);
+.mine-cube.has-mine-mark .face-mark {
+  background: #17212b;
+  width: calc(var(--cube-size) * 0.42);
+  height: calc(var(--cube-size) * 0.42);
+  box-shadow:
+    0 0 0 max(2px, calc(var(--cube-size) * 0.06)) rgba(255, 255, 255, 0.86),
+    0 2px 8px rgba(24, 33, 42, 0.28);
+}
+
+.mine-cube.has-mine-mark .face-mark::before,
+.mine-cube.has-mine-mark .face-mark::after {
+  content: "";
+  position: absolute;
+  display: block;
+}
+
+.mine-cube.has-mine-mark .face-mark::before {
+  left: 24%;
+  top: 24%;
+  width: 22%;
+  height: 22%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.mine-cube.has-mine-mark .face-mark::after {
+  left: 62%;
+  top: -24%;
+  width: 42%;
+  height: 32%;
+  border-top: max(2px, calc(var(--cube-size) * 0.055)) solid #17212b;
+  border-right: max(2px, calc(var(--cube-size) * 0.055)) solid #17212b;
+  border-radius: 0 999px 0 0;
+  transform: rotate(16deg);
+}
+
+.mine-cube:hover .cube-face,
+.mine-cube:focus-visible .cube-face {
+  border-color: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.46),
+    0 0 10px rgba(24, 124, 104, 0.24);
 }
 
 .player-row {

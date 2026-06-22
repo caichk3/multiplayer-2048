@@ -951,24 +951,24 @@ function getMineCubePosition(layer, row, column, config, cubeSize) {
   };
 }
 
-function getMineCellLabel(cell, revealAllMines) {
+function getMineCellMark(cell, revealAllMines) {
   if (cell.open && cell.mine) {
-    return "X";
+    return { type: "mine", text: "" };
   }
 
   if (cell.open && cell.adjacent > 0) {
-    return String(cell.adjacent);
+    return { type: "number", text: String(cell.adjacent) };
   }
 
   if (cell.flagged) {
-    return "";
+    return { type: "flag", text: "" };
   }
 
   if (revealAllMines && cell.mine) {
-    return "M";
+    return { type: "mine", text: "" };
   }
 
-  return "";
+  return { type: "none", text: "" };
 }
 
 function createMineCube(layer, row, column, cell, config, cubeSize) {
@@ -980,12 +980,15 @@ function createMineCube(layer, row, column, cell, config, cubeSize) {
   ["front", "back", "right", "left", "top", "bottom"].forEach((faceName) => {
     const face = document.createElement("span");
     face.className = `cube-face cube-${faceName}`;
+
+    const marker = document.createElement("span");
+    marker.className = "face-mark";
+    marker.setAttribute("aria-hidden", "true");
+    face.appendChild(marker);
+
     cube.appendChild(face);
   });
 
-  const label = document.createElement("span");
-  label.className = "cube-label";
-  cube.appendChild(label);
   updateMineCube(cube, layer, row, column, cell, config, cubeSize);
 
   return cube;
@@ -993,7 +996,7 @@ function createMineCube(layer, row, column, cell, config, cubeSize) {
 
 function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
   const revealAllMines = mineGameOver && !mineGameWon;
-  const labelText = getMineCellLabel(cell, revealAllMines);
+  const mark = getMineCellMark(cell, revealAllMines);
   const position = getMineCubePosition(layer, row, column, config, cubeSize);
   let ariaLabel = `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`;
 
@@ -1008,6 +1011,10 @@ function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
   cube.style.setProperty("--cube-y", `${position.y}px`);
   cube.style.setProperty("--cube-z", `${position.z}px`);
   cube.style.setProperty("--cube-hue", String(176 + layer * 17));
+  cube.classList.toggle("has-mark", mark.type !== "none");
+  cube.classList.toggle("has-number", mark.type === "number");
+  cube.classList.toggle("has-flag", mark.type === "flag");
+  cube.classList.toggle("has-mine-mark", mark.type === "mine");
 
   if (cell.open) {
     cube.classList.add("is-open");
@@ -1032,8 +1039,11 @@ function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
     ariaLabel = `${ariaLabel}，未翻开的雷`;
   }
 
-  const label = cube.querySelector(".cube-label");
-  label.textContent = labelText;
+  cube.querySelectorAll(".face-mark").forEach((marker) => {
+    marker.dataset.mark = mark.type;
+    marker.textContent = mark.text;
+  });
+
   cube.setAttribute("aria-label", ariaLabel);
 }
 
