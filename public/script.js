@@ -941,13 +941,12 @@ function getMineCubePosition(layer, row, column, config, cubeSize) {
   const rowMiddle = (config.rows - 1) / 2;
   const columnMiddle = (config.cols - 1) / 2;
   const layerOffset = layer - layerMiddle;
-  const layerLift = mineModelExpanded ? cubeSize * 1.45 : 0;
-  const layerSlide = mineModelExpanded ? cubeSize * 0.62 : 0;
+  const layerGap = mineModelExpanded ? cubeSize * 1.9 : 0;
 
   return {
     x: (column - columnMiddle) * step,
-    y: (layerMiddle - layer) * step - layerOffset * layerLift,
-    z: (row - rowMiddle) * step + layerOffset * layerSlide,
+    y: (layerMiddle - layer) * (step + layerGap),
+    z: (row - rowMiddle) * step,
   };
 }
 
