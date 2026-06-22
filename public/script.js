@@ -13,6 +13,7 @@ const joinRoomButton = document.querySelector("#join-room-button");
 const activeRoom = document.querySelector("#active-room");
 const activeRoomCode = document.querySelector("#active-room-code");
 const copyRoomButton = document.querySelector("#copy-room-button");
+const roomGameLabel = document.querySelector("#room-game-label");
 const playersList = document.querySelector("#players-list");
 const playerCount = document.querySelector("#player-count");
 const globalList = document.querySelector("#global-list");
@@ -37,6 +38,7 @@ const roomPanel = document.querySelector("#room-panel");
 const game2048Panel = document.querySelector("#game-2048");
 const gameMinesweeperPanel = document.querySelector("#game-minesweeper3d");
 const gameFlappyPanel = document.querySelector("#game-flappy");
+const gameDuelPanel = document.querySelector("#game-paddleduel");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
 const mineExpandButton = document.querySelector("#mine-expand-button");
@@ -55,11 +57,19 @@ const flappyStatusText = document.querySelector("#flappy-status-text");
 const flappyRestartButton = document.querySelector("#flappy-restart-button");
 const flappyScoreElement = document.querySelector("#flappy-score");
 const flappyBestElement = document.querySelector("#flappy-best");
+const duelCanvas = document.querySelector("#duel-canvas");
+const duelContext = duelCanvas.getContext("2d");
+const duelScoreElement = document.querySelector("#duel-score");
+const duelTimeElement = document.querySelector("#duel-time");
+const duelStatusText = document.querySelector("#duel-status-text");
+const duelStartButton = document.querySelector("#duel-start-button");
+const duelMoveButtons = Array.from(document.querySelectorAll("[data-duel-move]"));
 
 const socket = io();
 const GAME_2048 = "2048";
 const GAME_MINESWEEPER = "minesweeper3d";
 const GAME_FLAPPY = "flappy";
+const GAME_DUEL = "paddleduel";
 const size = 4;
 const totalCells = size * size;
 const bestKey = "web2-multiplayer-2048-best-score";
@@ -125,6 +135,7 @@ const text = {
   overTitle: "游戏结束",
   overStatus: "没有可移动的方块了，积分已结算。",
   minesReady: "拖动旋转模型，点立方体翻开，右键或长按插旗。",
+  minesLayerReady: "手机分层模式：点格子翻开，长按插旗，用层按钮切换高度。",
   minesWin: "3D 扫雷完成，积分已结算。",
   minesLose: "踩到雷了，积分已结算。",
   flappyReady: "点击、触屏或按空格起飞，穿过管道拿分。",
@@ -176,6 +187,7 @@ let mineModelDragDistance = 0;
 let mineModelExpanded = false;
 let mineModelRotationFrameId = null;
 let mineLightMode = mineLightModeQuery.matches;
+let mineLayerView = 0;
 let flappyGameId = createGameId();
 let flappyScore = 0;
 let flappyBest = Number(localStorage.getItem(flappyBestKey)) || 0;
@@ -190,6 +202,9 @@ let flappyLastFrameTime = 0;
 let flappySettled = false;
 let flappyGroundOffset = 0;
 let flappyClouds = [];
+let duelState = null;
+let duelSide = "";
+let duelInputDirection = 0;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
@@ -250,11 +265,23 @@ function setupBoardMarkup() {
 }
 
 function setupMinesweeperMarkup() {
+  mineModelStage.querySelector(".mine-layer-shell")?.remove();
   mineModelSpace.innerHTML = "";
-  mineModelSpace.dataset.renderMode = mineLightMode ? "light" : "full";
+  mineModelSpace.dataset.renderMode = mineLightMode ? "layers" : "full";
   applyMineModelRotation();
   renderMineExpandButton();
   mineModelStage.classList.toggle("is-light-mode", mineLightMode);
+  mineModelStage.classList.toggle("is-layer-mode", mineLightMode);
+
+  if (mineLightMode) {
+    const shell = document.createElement("div");
+    shell.className = "mine-layer-shell";
+    shell.innerHTML = `
+      <div class="mine-layer-tabs" id="mine-layer-tabs" aria-label="扫雷层数"></div>
+      <div class="mine-layer-board" id="mine-layer-board" aria-label="当前层扫雷棋盘"></div>
+    `;
+    mineModelStage.appendChild(shell);
+  }
 }
 
 function hasAccount() {
@@ -351,10 +378,14 @@ function updateRoomActions() {
   const show2048 = currentGame === GAME_2048;
   const showMinesweeper = currentGame === GAME_MINESWEEPER;
   const showFlappy = currentGame === GAME_FLAPPY;
-  roomPanel.hidden = !show2048;
+  const showDuel = currentGame === GAME_DUEL;
+  const showRoom = show2048 || showDuel;
+  roomPanel.hidden = !showRoom;
+  roomGameLabel.textContent = showDuel ? "挡板弹球对战" : "2048 联机竞速";
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
+  gameDuelPanel.classList.toggle("is-hidden", !showDuel);
 
   gameCards.forEach((card) => {
     card.classList.toggle("is-active", card.dataset.game === currentGame);
@@ -371,16 +402,24 @@ function updateRoomActions() {
   } else if (showFlappy) {
     flappyStatusText.textContent = flappyGameOver ? text.flappyOver : text.flappyReady;
     renderFlappy();
+  } else if (showDuel) {
+    renderDuel();
+    updateDuelStatus();
   }
 }
 
 function getMineReadyText() {
   const config = getMineDifficulty();
-  return `${config.label}难度：随机形状 ${mineActiveCells || config.activeCells} 格，${mineCount || config.mines} 颗雷。${text.minesReady}`;
+  const operateText = mineLightMode ? text.minesLayerReady : text.minesReady;
+  return `${config.label}难度：随机形状 ${mineActiveCells || config.activeCells} 格，${mineCount || config.mines} 颗雷。${operateText}`;
 }
 
 function setActiveGame(gameId, options = {}) {
-  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY].includes(gameId)
+  if (currentGame === GAME_DUEL && gameId !== GAME_DUEL) {
+    setDuelInput(0);
+  }
+
+  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_DUEL].includes(gameId)
     ? gameId
     : GAME_2048;
 
@@ -736,6 +775,17 @@ function getDirectionFromKey(key) {
 }
 
 function handleKeyDown(event) {
+  if (currentGame === GAME_DUEL) {
+    const direction = getDuelDirection(event.key);
+
+    if (direction !== 0) {
+      event.preventDefault();
+      setDuelInput(direction);
+    }
+
+    return;
+  }
+
   if (currentGame === GAME_FLAPPY) {
     if ([" ", "ArrowUp", "w", "W"].includes(event.key)) {
       event.preventDefault();
@@ -758,6 +808,29 @@ function handleKeyDown(event) {
     }
     move2048(direction);
   }
+}
+
+function handleKeyUp(event) {
+  if (currentGame !== GAME_DUEL) {
+    return;
+  }
+
+  if (["ArrowUp", "ArrowDown", "w", "W", "s", "S"].includes(event.key)) {
+    event.preventDefault();
+    setDuelInput(0);
+  }
+}
+
+function getDuelDirection(key) {
+  if (key === "ArrowUp" || key === "w" || key === "W") {
+    return -1;
+  }
+
+  if (key === "ArrowDown" || key === "s" || key === "S") {
+    return 1;
+  }
+
+  return 0;
 }
 
 function handleTouchStart(event) {
@@ -798,11 +871,15 @@ function handleTouchEnd(event) {
 function setRoom(room, playerId) {
   currentRoomCode = room.code;
   currentPlayerId = playerId;
+  duelState = room.duel || duelState;
+  duelSide = getDuelSide();
   roomCodeInput.value = room.code;
   activeRoomCode.textContent = room.code;
   activeRoom.hidden = false;
   statusText.textContent = text.ready;
   renderPlayers(room);
+  renderDuel();
+  updateDuelStatus();
   updateRoomActions();
 }
 
@@ -867,6 +944,7 @@ function getRoomPlayerStatusText(player) {
 
 function renderPlayers(room) {
   const players = room.players || [];
+  const roomDuel = room.duel || duelState;
   playerCount.textContent = `${players.length} 人`;
   playersList.innerHTML = "";
 
@@ -894,16 +972,32 @@ function renderPlayers(room) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `${getRoomPlayerStatusText(player)} · Lv.${player.level || 1} · 最高块 ${player.bestTile || 0} · ${player.moves || 0} 步`;
+    if (currentGame === GAME_DUEL) {
+      const side =
+        roomDuel?.players?.left?.id === player.id
+          ? "左侧"
+          : roomDuel?.players?.right?.id === player.id
+            ? "右侧"
+            : "观战";
+      meta.textContent = `${side} · Lv.${player.level || 1} · ${getRoomPlayerStatusText(player)}`;
+    } else {
+      meta.textContent = `${getRoomPlayerStatusText(player)} · Lv.${player.level || 1} · 最高块 ${player.bestTile || 0} · ${player.moves || 0} 步`;
+    }
 
     info.append(name, meta);
 
     const scoreBox = document.createElement("div");
     scoreBox.className = "player-score";
     const scoreValue = document.createElement("strong");
-    scoreValue.textContent = String(player.score || 0);
+    const duelScore =
+      roomDuel?.players?.left?.id === player.id
+        ? roomDuel?.score?.left
+        : roomDuel?.players?.right?.id === player.id
+          ? roomDuel?.score?.right
+          : null;
+    scoreValue.textContent = String(currentGame === GAME_DUEL && duelScore !== null ? duelScore || 0 : player.score || 0);
     const scoreLabel = document.createElement("span");
-    scoreLabel.textContent = `${player.totalPoints || 0} 总分`;
+    scoreLabel.textContent = currentGame === GAME_DUEL ? "进球" : `${player.totalPoints || 0} 总分`;
     scoreBox.append(scoreValue, scoreLabel);
 
     item.append(rank, info, scoreBox);
@@ -952,7 +1046,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟最佳 ${player.stats.flappy?.bestScore || 0}`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
 
     info.append(name, meta);
 
@@ -967,6 +1061,178 @@ function renderGlobalLeaderboard(players) {
     item.append(rank, info, scoreBox);
     globalList.appendChild(item);
   });
+}
+
+function formatDuelTime(seconds) {
+  const safeSeconds = Math.max(0, Math.ceil(seconds || 0));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = safeSeconds % 60;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
+}
+
+function getDuelSide(state = duelState) {
+  if (!state?.players) {
+    return "";
+  }
+
+  if (state.players.left?.id === currentPlayerId) {
+    return "left";
+  }
+
+  if (state.players.right?.id === currentPlayerId) {
+    return "right";
+  }
+
+  return "";
+}
+
+function updateDuelStatus() {
+  duelSide = getDuelSide();
+  const playerCount = [duelState?.players?.left, duelState?.players?.right].filter(Boolean).length;
+
+  if (!currentRoomCode) {
+    duelStatusText.textContent = hasAccount()
+      ? "先创建房间，或输入同学的房间号加入。"
+      : "先登录账号，再创建或加入房间。";
+    duelStartButton.disabled = !hasAccount();
+    return;
+  }
+
+  if (playerCount < 2) {
+    duelStatusText.textContent = "等待第 2 位同学加入房间。";
+    duelStartButton.disabled = true;
+    return;
+  }
+
+  if (duelState?.active) {
+    duelStatusText.textContent = duelSide
+      ? `你在${duelSide === "left" ? "左侧" : "右侧"}，用 W/S 或上下方向键移动。`
+      : "你正在观战这局对战。";
+    duelStartButton.disabled = true;
+    return;
+  }
+
+  if (duelState?.ended) {
+    const winnerName = duelState.winner ? duelState.players?.[duelState.winner]?.name : "";
+    duelStatusText.textContent = winnerName ? `${winnerName} 获胜，点击开始可以再来一局。` : "平局，点击开始可以再来一局。";
+    duelStartButton.disabled = false;
+    return;
+  }
+
+  duelStatusText.textContent = duelSide ? "满 2 人后可以开始，3 分钟内进门得分。" : "房间已满，你可以观战。";
+  duelStartButton.disabled = !duelSide;
+}
+
+function setDuelInput(direction) {
+  if (!currentRoomCode || duelInputDirection === direction) {
+    return;
+  }
+
+  duelInputDirection = direction;
+  socket.emit("duel:input", { direction });
+}
+
+function requestDuelStart() {
+  if (!hasAccount()) {
+    duelStatusText.textContent = "先登录账号再开始对战。";
+    return;
+  }
+
+  if (!currentRoomCode) {
+    duelStatusText.textContent = "先创建或加入一个房间。";
+    return;
+  }
+
+  setDuelInput(0);
+  socket.emit("duel:start", {}, (response) => {
+    if (!response?.ok) {
+      duelStatusText.textContent = response?.message || "暂时不能开始对战。";
+    }
+  });
+}
+
+function renderDuel() {
+  const context = duelContext;
+  const width = duelCanvas.width;
+  const height = duelCanvas.height;
+  const state = duelState || {};
+  const score = state.score || { left: 0, right: 0 };
+  const paddles = state.paddles || { left: 0.5, right: 0.5 };
+  const ball = state.ball || { x: width / 2, y: height / 2 };
+
+  duelScoreElement.textContent = `${score.left || 0} : ${score.right || 0}`;
+  duelTimeElement.textContent = formatDuelTime(state.timeLeft ?? 180);
+  context.clearRect(0, 0, width, height);
+
+  const courtGradient = context.createLinearGradient(0, 0, width, height);
+  courtGradient.addColorStop(0, "#17324a");
+  courtGradient.addColorStop(0.52, "#1f5b61");
+  courtGradient.addColorStop(1, "#24364b");
+  context.fillStyle = courtGradient;
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(255, 255, 255, 0.28)";
+  context.lineWidth = 4;
+  context.strokeRect(18, 18, width - 36, height - 36);
+  context.setLineDash([12, 14]);
+  context.beginPath();
+  context.moveTo(width / 2, 24);
+  context.lineTo(width / 2, height - 24);
+  context.stroke();
+  context.setLineDash([]);
+
+  drawDuelGoal(context, 18, height);
+  drawDuelGoal(context, width - 18, height);
+  drawDuelPaddle(context, 42, paddles.left * height, "#f4c542");
+  drawDuelPaddle(context, width - 42, paddles.right * height, "#65d6c1");
+  drawDuelBall(context, ball.x, ball.y);
+
+  context.fillStyle = "rgba(255, 255, 255, 0.9)";
+  context.font = "900 44px Inter, Arial, sans-serif";
+  context.textAlign = "center";
+  context.fillText(`${score.left || 0}  :  ${score.right || 0}`, width / 2, 72);
+
+  if (!state.active) {
+    context.fillStyle = "rgba(8, 18, 28, 0.54)";
+    context.fillRect(170, 176, width - 340, 128);
+    context.fillStyle = "#ffffff";
+    context.font = "900 28px Inter, Arial, sans-serif";
+    context.fillText(state.ended ? "对战结束" : "等待开始", width / 2, 226);
+    context.font = "800 16px Inter, Arial, sans-serif";
+    context.fillText(currentRoomCode ? "满 2 人后点击开始对战" : "先创建或加入房间", width / 2, 260);
+  }
+}
+
+function drawDuelGoal(context, x, height) {
+  context.strokeStyle = "rgba(244, 197, 66, 0.68)";
+  context.lineWidth = 8;
+  context.beginPath();
+  context.moveTo(x, 28);
+  context.lineTo(x, height - 28);
+  context.stroke();
+}
+
+function drawDuelPaddle(context, x, centerY, color) {
+  const paddleHeight = 92;
+  context.fillStyle = color;
+  context.fillRect(x - 8, centerY - paddleHeight / 2, 16, paddleHeight);
+  context.fillStyle = "rgba(255, 255, 255, 0.28)";
+  context.fillRect(x - 5, centerY - paddleHeight / 2 + 8, 4, paddleHeight - 16);
+}
+
+function drawDuelBall(context, x, y) {
+  context.fillStyle = "#ffffff";
+  context.beginPath();
+  context.arc(x, y, 11, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = "rgba(244, 197, 66, 0.9)";
+  context.lineWidth = 3;
+  context.stroke();
+}
+
+function setDuelTouchInput(clientY) {
+  const rect = duelCanvas.getBoundingClientRect();
+  setDuelInput(clientY < rect.top + rect.height / 2 ? -1 : 1);
 }
 
 function resetFlappyGame(options = {}) {
@@ -1336,6 +1602,14 @@ function scheduleMineModelRotation() {
 }
 
 function renderMineExpandButton() {
+  if (mineLightMode) {
+    const config = getMineDifficulty();
+    mineExpandButton.textContent = `下一层 ${mineLayerView + 1}/${config.layers}`;
+    mineExpandButton.setAttribute("aria-pressed", "false");
+    mineModelStage.classList.remove("is-expanded");
+    return;
+  }
+
   mineExpandButton.textContent = mineModelExpanded ? "合拢模型" : "分层展开";
   mineExpandButton.setAttribute("aria-pressed", String(mineModelExpanded));
   mineModelStage.classList.toggle("is-expanded", mineModelExpanded);
@@ -1455,6 +1729,83 @@ function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
   cube.setAttribute("aria-label", ariaLabel);
 }
 
+function renderMinesweeperLayerBoard(config) {
+  mineLayerView = Math.max(0, Math.min(config.layers - 1, mineLayerView));
+  const tabs = mineModelStage.querySelector("#mine-layer-tabs");
+  const board = mineModelStage.querySelector("#mine-layer-board");
+
+  if (!tabs || !board) {
+    setupMinesweeperMarkup();
+    renderMinesweeperLayerBoard(config);
+    return;
+  }
+
+  tabs.innerHTML = "";
+  board.innerHTML = "";
+  board.style.setProperty("--mine-layer-cols", String(config.cols));
+
+  for (let layer = 0; layer < config.layers; layer += 1) {
+    const tab = document.createElement("button");
+    const layerCells = mineBoard[layer]?.flat().filter((cell) => cell.active) || [];
+    const layerFlags = layerCells.filter((cell) => cell.flagged).length;
+    const layerOpen = layerCells.filter((cell) => cell.open).length;
+
+    tab.type = "button";
+    tab.className = "mine-layer-tab";
+    tab.classList.toggle("is-active", layer === mineLayerView);
+    tab.textContent = `${layer + 1}层 ${layerOpen}/${layerCells.length}${layerFlags ? ` 旗${layerFlags}` : ""}`;
+    tab.addEventListener("click", () => {
+      mineLayerView = layer;
+      renderMinesweeperBoard();
+    });
+    tabs.appendChild(tab);
+  }
+
+  for (let row = 0; row < config.rows; row += 1) {
+    for (let column = 0; column < config.cols; column += 1) {
+      const cell = getMineCell(mineLayerView, row, column);
+      const button = document.createElement("button");
+
+      button.type = "button";
+      button.className = "mine-layer-cell";
+      button.dataset.layer = String(mineLayerView);
+      button.dataset.row = String(row);
+      button.dataset.column = String(column);
+      updateMineLayerCell(button, mineLayerView, row, column, cell);
+      board.appendChild(button);
+    }
+  }
+}
+
+function updateMineLayerCell(button, layer, row, column, cell) {
+  const revealAllMines = mineGameOver && !mineGameWon;
+  const mark = cell ? getMineCellMark(cell, revealAllMines) : { type: "none", text: "" };
+  let ariaLabel = `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`;
+
+  button.className = "mine-layer-cell";
+  button.textContent = mark.type === "number" ? mark.text : "";
+  button.disabled = !cell?.active;
+  button.classList.toggle("is-inactive", !cell?.active);
+  button.classList.toggle("is-open", Boolean(cell?.open));
+  button.classList.toggle("is-zero", Boolean(cell?.open && cell.adjacent === 0 && !cell.mine));
+  button.classList.toggle("has-number", mark.type === "number");
+  button.classList.toggle("has-flag", mark.type === "flag");
+  button.classList.toggle("has-mine-mark", mark.type === "mine");
+
+  if (mark.type === "number") {
+    button.classList.add(`is-number-${Math.min(Number(mark.text), 8)}`);
+    ariaLabel = `${ariaLabel}，数字 ${mark.text}`;
+  } else if (mark.type === "flag") {
+    ariaLabel = `${ariaLabel}，已插旗`;
+  } else if (mark.type === "mine") {
+    ariaLabel = `${ariaLabel}，雷`;
+  } else if (cell?.open) {
+    ariaLabel = `${ariaLabel}，空`;
+  }
+
+  button.setAttribute("aria-label", ariaLabel);
+}
+
 function startMineTimer() {
   if (mineTimerId) {
     return;
@@ -1492,6 +1843,7 @@ function initializeMinesweeperBoard() {
   mineCount = Math.min(config.mines, Math.max(1, mineActiveCells - 1));
   mineSafeCells = mineActiveCells - mineCount;
   mineSettled = false;
+  mineLayerView = 0;
   stopMineTimer();
 
   const shape = generateMineShape(config, mineActiveCells);
@@ -1631,11 +1983,29 @@ function getMineCell(layer, row, column) {
 
 function renderMinesweeperBoard() {
   const config = getMineDifficulty();
-  const fragment = document.createDocumentFragment();
-  const cubeSize = getMineCubeSize(config);
-  const renderMode = mineLightMode ? "light" : "full";
+  const renderMode = mineLightMode ? "layers" : "full";
+
+  if (mineModelSpace.dataset.renderMode !== renderMode) {
+    setupMinesweeperMarkup();
+  }
 
   mineModelStage.classList.toggle("is-light-mode", mineLightMode);
+  mineModelStage.classList.toggle("is-layer-mode", mineLightMode);
+
+  if (mineLightMode) {
+    renderMinesweeperLayerBoard(config);
+    renderMineExpandButton();
+    renderMinesweeperStats();
+    mineStatusText.textContent = mineGameOver
+      ? mineGameWon
+        ? text.minesWin
+        : text.minesLose
+      : getMineReadyText();
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  const cubeSize = getMineCubeSize(config);
 
   if (mineModelSpace.dataset.renderMode !== renderMode) {
     mineModelSpace.innerHTML = "";
@@ -1851,6 +2221,18 @@ async function settleMinesweeperGame(reason) {
   }
 }
 
+function getMineActionButton(target) {
+  return target.closest(".mine-cube, .mine-layer-cell");
+}
+
+function getMineButtonPosition(button) {
+  return {
+    layer: Number(button.dataset.layer),
+    row: Number(button.dataset.row),
+    column: Number(button.dataset.column),
+  };
+}
+
 function handleMineClick(event) {
   if (currentGame !== GAME_MINESWEEPER) {
     return;
@@ -1864,15 +2246,13 @@ function handleMineClick(event) {
     return;
   }
 
-  const button = event.target.closest(".mine-cube");
+  const button = getMineActionButton(event.target);
 
   if (!button) {
     return;
   }
 
-  const layer = Number(button.dataset.layer);
-  const row = Number(button.dataset.row);
-  const column = Number(button.dataset.column);
+  const { layer, row, column } = getMineButtonPosition(button);
   openMineCell(layer, row, column);
 }
 
@@ -1881,16 +2261,14 @@ function handleMineContextMenu(event) {
     return;
   }
 
-  const button = event.target.closest(".mine-cube");
+  const button = getMineActionButton(event.target);
 
   if (!button) {
     return;
   }
 
   event.preventDefault();
-  const layer = Number(button.dataset.layer);
-  const row = Number(button.dataset.row);
-  const column = Number(button.dataset.column);
+  const { layer, row, column } = getMineButtonPosition(button);
   toggleMineFlag(layer, row, column);
 }
 
@@ -1910,9 +2288,13 @@ function handleMineTouchStart(event) {
   }
 
   const touch = event.changedTouches[0];
-  startMineModelDrag(touch.clientX, touch.clientY);
+  const button = getMineActionButton(event.target);
 
-  const button = event.target.closest(".mine-cube");
+  if (!mineLightMode) {
+    startMineModelDrag(touch.clientX, touch.clientY);
+  } else {
+    mineModelDragDistance = 0;
+  }
 
   if (!button) {
     clearMineTouchHold();
@@ -1930,9 +2312,7 @@ function handleMineTouchStart(event) {
     }
 
     mineTouchLongPressed = true;
-    const layer = Number(button.dataset.layer);
-    const row = Number(button.dataset.row);
-    const column = Number(button.dataset.column);
+    const { layer, row, column } = getMineButtonPosition(button);
     toggleMineFlag(layer, row, column);
     mineIgnoreClickUntil = Date.now() + 400;
   }, 420);
@@ -1943,9 +2323,12 @@ function handleMineTouchEnd(event) {
     return;
   }
 
-  const wasDragged = mineModelDragDistance > 6;
-  const button = event.target.closest(".mine-cube") || mineTouchTarget;
-  endMineModelDrag();
+  const wasDragged = !mineLightMode && mineModelDragDistance > 6;
+  const button = getMineActionButton(event.target) || mineTouchTarget;
+
+  if (!mineLightMode) {
+    endMineModelDrag();
+  }
 
   if (!button) {
     clearMineTouchHold();
@@ -1965,9 +2348,7 @@ function handleMineTouchEnd(event) {
   }
 
   if (!wasDragged && Date.now() >= mineIgnoreClickUntil) {
-    const layer = Number(button.dataset.layer);
-    const row = Number(button.dataset.row);
-    const column = Number(button.dataset.column);
+    const { layer, row, column } = getMineButtonPosition(button);
     openMineCell(layer, row, column);
   }
 
@@ -1976,6 +2357,10 @@ function handleMineTouchEnd(event) {
 }
 
 function handleMineTouchMove(event) {
+  if (mineLightMode) {
+    return;
+  }
+
   if (mineModelDragging) {
     event.preventDefault();
   }
@@ -2026,6 +2411,10 @@ function endMineModelDrag() {
 }
 
 function handleMineModelPointerDown(event) {
+  if (mineLightMode) {
+    return;
+  }
+
   if (event.button !== 0) {
     return;
   }
@@ -2039,6 +2428,13 @@ function handleMineModelPointerMove(event) {
 }
 
 function toggleMineModelExpanded() {
+  if (mineLightMode) {
+    const config = getMineDifficulty();
+    mineLayerView = (mineLayerView + 1) % config.layers;
+    renderMinesweeperBoard();
+    return;
+  }
+
   mineModelExpanded = !mineModelExpanded;
   renderMinesweeperBoard();
 }
@@ -2082,7 +2478,33 @@ socket.on("room:update", (room) => {
     return;
   }
 
+  duelState = room.duel || duelState;
+  duelSide = getDuelSide();
   renderPlayers(room);
+  renderDuel();
+  updateDuelStatus();
+});
+
+socket.on("duel:update", (state) => {
+  duelState = state;
+  duelSide = getDuelSide();
+  renderDuel();
+  updateDuelStatus();
+});
+
+socket.on("duel:ended", async (payload = {}) => {
+  duelState = payload.state || duelState;
+  duelSide = getDuelSide();
+  renderDuel();
+  updateDuelStatus();
+
+  try {
+    const data = await apiRequest("/api/me");
+    renderAccount(data.profile);
+    await refreshLeaderboard();
+  } catch {
+    await refreshLeaderboard();
+  }
 });
 
 accountForm.addEventListener("submit", (event) => {
@@ -2108,11 +2530,13 @@ flappyRestartButton.addEventListener("click", () => {
 
   startFlappyGame();
 });
+duelStartButton.addEventListener("click", requestDuelStart);
 messageButton.addEventListener("click", hideMessageAndContinue);
 gameCards.forEach((card) => {
   card.addEventListener("click", () => setActiveGame(card.dataset.game));
 });
 document.addEventListener("keydown", handleKeyDown);
+document.addEventListener("keyup", handleKeyUp);
 boardElement.addEventListener("touchstart", handleTouchStart, { passive: true });
 boardElement.addEventListener("touchend", handleTouchEnd);
 flappyCanvas.addEventListener("click", flap);
@@ -2120,6 +2544,34 @@ flappyCanvas.addEventListener("touchstart", (event) => {
   event.preventDefault();
   flap();
 }, { passive: false });
+duelCanvas.addEventListener("pointerdown", (event) => {
+  if (currentGame !== GAME_DUEL) {
+    return;
+  }
+
+  duelCanvas.setPointerCapture(event.pointerId);
+  setDuelTouchInput(event.clientY);
+});
+duelCanvas.addEventListener("pointermove", (event) => {
+  if (currentGame !== GAME_DUEL || event.buttons === 0) {
+    return;
+  }
+
+  setDuelTouchInput(event.clientY);
+});
+duelCanvas.addEventListener("pointerup", () => setDuelInput(0));
+duelCanvas.addEventListener("pointercancel", () => setDuelInput(0));
+duelMoveButtons.forEach((button) => {
+  const direction = button.dataset.duelMove === "up" ? -1 : 1;
+
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    setDuelInput(direction);
+  });
+  button.addEventListener("pointerup", () => setDuelInput(0));
+  button.addEventListener("pointerleave", () => setDuelInput(0));
+  button.addEventListener("pointercancel", () => setDuelInput(0));
+});
 roomCodeInput.addEventListener("input", () => {
   roomCodeInput.value = roomCodeInput.value.toUpperCase();
 });
@@ -2150,5 +2602,6 @@ board = createEmptyBoard();
 mineBoard = createMineBoard();
 initializeMinesweeperBoard();
 resetFlappyGame();
+renderDuel();
 start2048Game({ notify: false, settlePrevious: false });
 loadSession();

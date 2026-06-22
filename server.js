@@ -14,6 +14,14 @@ const publicPath = path.join(__dirname, "public");
 const dataDirectory = process.env.DATA_DIR || path.join(__dirname, "data");
 const usersPath = path.join(dataDirectory, "users.json");
 const rooms = new Map();
+const duelLoops = new Map();
+const DUEL_WIDTH = 800;
+const DUEL_HEIGHT = 480;
+const DUEL_DURATION_MS = 180000;
+const DUEL_PADDLE_HEIGHT = 92;
+const DUEL_PADDLE_SPEED = 430;
+const DUEL_PADDLE_X = 42;
+const DUEL_BALL_RADIUS = 11;
 
 app.use(express.json({ limit: "32kb" }));
 app.use(express.static(publicPath));
@@ -340,6 +348,15 @@ function createDefaultStats() {
         lastScore: 0,
         lastPlayedAt: null,
       },
+      paddleduel: {
+        plays: 0,
+        wins: 0,
+        draws: 0,
+        goalsFor: 0,
+        goalsAgainst: 0,
+        lastResult: "",
+        lastPlayedAt: null,
+      },
       sokoban: {
         plays: 0,
         wins: 0,
@@ -371,6 +388,10 @@ function ensureUserShape(user) {
   user.stats.games.flappy = {
     ...createDefaultStats().games.flappy,
     ...(user.stats.games.flappy || {}),
+  };
+  user.stats.games.paddleduel = {
+    ...createDefaultStats().games.paddleduel,
+    ...(user.stats.games.paddleduel || {}),
   };
   user.stats.games.sokoban = {
     ...createDefaultStats().games.sokoban,
@@ -478,6 +499,7 @@ function getPublicProfile(user) {
   const game2048 = user.stats.games["2048"];
   const minesweeper3d = user.stats.games.minesweeper3d;
   const flappy = user.stats.games.flappy;
+  const paddleduel = user.stats.games.paddleduel;
 
   return {
     id: user.id,
@@ -508,6 +530,14 @@ function getPublicProfile(user) {
         bestScore: flappy.bestScore,
         bestTime: flappy.bestTime,
         lastScore: flappy.lastScore,
+      },
+      paddleduel: {
+        plays: paddleduel.plays,
+        wins: paddleduel.wins,
+        draws: paddleduel.draws,
+        goalsFor: paddleduel.goalsFor,
+        goalsAgainst: paddleduel.goalsAgainst,
+        lastResult: paddleduel.lastResult,
       },
     },
     recentResults: user.recentResults.slice(0, 6),
@@ -617,12 +647,48 @@ function makePlayer(id, user) {
   };
 }
 
+function createDuelState() {
+  return {
+    active: false,
+    ended: false,
+    gameId: "",
+    startedAt: 0,
+    endsAt: 0,
+    lastTick: 0,
+    players: {
+      left: null,
+      right: null,
+    },
+    inputs: {
+      left: 0,
+      right: 0,
+    },
+    paddles: {
+      left: 0.5,
+      right: 0.5,
+    },
+    ball: {
+      x: DUEL_WIDTH / 2,
+      y: DUEL_HEIGHT / 2,
+      vx: 330,
+      vy: 120,
+    },
+    score: {
+      left: 0,
+      right: 0,
+    },
+    winner: "",
+    settled: false,
+  };
+}
+
 function ensureRoom(roomCode) {
   if (!rooms.has(roomCode)) {
     rooms.set(roomCode, {
       code: roomCode,
       createdAt: Date.now(),
       players: new Map(),
+      duel: createDuelState(),
     });
   }
 
@@ -638,6 +704,7 @@ function leaveCurrentRoom(socket) {
   }
 
   room.players.delete(socket.id);
+  handleDuelPlayerLeave(room, socket.id);
   socket.leave(roomCode);
   sendRoomUpdate(roomCode);
   cleanEmptyRoom(roomCode);
@@ -676,6 +743,7 @@ function getPublicRoom(room) {
     code: room.code,
     players,
     playerCount: players.length,
+    duel: getPublicDuelState(room),
   };
 }
 
@@ -693,8 +761,342 @@ function cleanEmptyRoom(roomCode) {
   const room = rooms.get(roomCode);
 
   if (room && room.players.size === 0) {
+    stopDuelLoop(roomCode);
     rooms.delete(roomCode);
   }
+}
+
+function syncDuelPlayers(room) {
+  const duel = room.duel || createDuelState();
+  room.duel = duel;
+  const connectedPlayers = Array.from(room.players.values()).sort(
+    (first, second) => first.joinedAt - second.joinedAt,
+  );
+  const hasPlayer = (player) => player && room.players.has(player.id);
+
+  if (!hasPlayer(duel.players.left)) {
+    duel.players.left = null;
+    duel.inputs.left = 0;
+  }
+
+  if (!hasPlayer(duel.players.right)) {
+    duel.players.right = null;
+    duel.inputs.right = 0;
+  }
+
+  connectedPlayers.forEach((player) => {
+    if (!duel.players.left && duel.players.right?.id !== player.id) {
+      duel.players.left = player;
+    } else if (!duel.players.right && duel.players.left?.id !== player.id) {
+      duel.players.right = player;
+    }
+  });
+}
+
+function getPublicDuelPlayer(player) {
+  if (!player) {
+    return null;
+  }
+
+  return {
+    id: player.id,
+    accountId: player.accountId,
+    name: player.name,
+    level: player.level,
+  };
+}
+
+function getPublicDuelState(room) {
+  syncDuelPlayers(room);
+  const duel = room.duel;
+  const now = Date.now();
+
+  return {
+    active: duel.active,
+    ended: duel.ended,
+    timeLeft: duel.active ? Math.max(0, (duel.endsAt - now) / 1000) : duel.ended ? 0 : DUEL_DURATION_MS / 1000,
+    width: DUEL_WIDTH,
+    height: DUEL_HEIGHT,
+    players: {
+      left: getPublicDuelPlayer(duel.players.left),
+      right: getPublicDuelPlayer(duel.players.right),
+    },
+    paddles: duel.paddles,
+    ball: duel.ball,
+    score: duel.score,
+    winner: duel.winner,
+  };
+}
+
+function sendDuelUpdate(roomCode) {
+  const room = rooms.get(roomCode);
+
+  if (!room) {
+    return;
+  }
+
+  io.to(roomCode).emit("duel:update", getPublicDuelState(room));
+}
+
+function resetDuelBall(duel, direction = Math.random() > 0.5 ? 1 : -1) {
+  const speed = 330 + Math.min(120, (duel.score.left + duel.score.right) * 16);
+  const angle = (Math.random() * 0.7 - 0.35) * Math.PI;
+
+  duel.ball = {
+    x: DUEL_WIDTH / 2,
+    y: DUEL_HEIGHT / 2,
+    vx: Math.cos(angle) * speed * direction,
+    vy: Math.sin(angle) * speed,
+  };
+}
+
+function startDuel(roomCode, socketId) {
+  const room = rooms.get(roomCode);
+
+  if (!room) {
+    return { ok: false, message: "没有找到房间" };
+  }
+
+  syncDuelPlayers(room);
+  const duel = room.duel;
+  const isParticipant = [duel.players.left?.id, duel.players.right?.id].includes(socketId);
+
+  if (duel.active) {
+    return { ok: false, message: "本局正在进行中" };
+  }
+
+  if (!isParticipant) {
+    return { ok: false, message: "只有对战双方可以开始" };
+  }
+
+  if (!duel.players.left || !duel.players.right) {
+    return { ok: false, message: "需要 2 位玩家才能开始" };
+  }
+
+  duel.active = true;
+  duel.ended = false;
+  duel.gameId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  duel.startedAt = Date.now();
+  duel.endsAt = duel.startedAt + DUEL_DURATION_MS;
+  duel.lastTick = duel.startedAt;
+  duel.inputs.left = 0;
+  duel.inputs.right = 0;
+  duel.paddles.left = 0.5;
+  duel.paddles.right = 0.5;
+  duel.score.left = 0;
+  duel.score.right = 0;
+  duel.winner = "";
+  duel.settled = false;
+  resetDuelBall(duel);
+  ensureDuelLoop(roomCode);
+  sendRoomUpdate(roomCode);
+  sendDuelUpdate(roomCode);
+  return { ok: true };
+}
+
+function ensureDuelLoop(roomCode) {
+  if (duelLoops.has(roomCode)) {
+    return;
+  }
+
+  const intervalId = setInterval(() => tickDuel(roomCode), 1000 / 30);
+  duelLoops.set(roomCode, intervalId);
+}
+
+function stopDuelLoop(roomCode) {
+  const intervalId = duelLoops.get(roomCode);
+
+  if (intervalId) {
+    clearInterval(intervalId);
+    duelLoops.delete(roomCode);
+  }
+}
+
+function tickDuel(roomCode) {
+  const room = rooms.get(roomCode);
+
+  if (!room || !room.duel?.active) {
+    stopDuelLoop(roomCode);
+    return;
+  }
+
+  const duel = room.duel;
+  const now = Date.now();
+  const delta = Math.min(0.05, (now - duel.lastTick) / 1000 || 1 / 30);
+  duel.lastTick = now;
+  stepDuel(duel, delta);
+
+  if (now >= duel.endsAt) {
+    finishDuel(roomCode);
+    return;
+  }
+
+  sendDuelUpdate(roomCode);
+}
+
+function stepDuel(duel, delta) {
+  duel.paddles.left = clampUnit(duel.paddles.left + (duel.inputs.left * DUEL_PADDLE_SPEED * delta) / DUEL_HEIGHT);
+  duel.paddles.right = clampUnit(duel.paddles.right + (duel.inputs.right * DUEL_PADDLE_SPEED * delta) / DUEL_HEIGHT);
+
+  duel.ball.x += duel.ball.vx * delta;
+  duel.ball.y += duel.ball.vy * delta;
+
+  if (duel.ball.y <= DUEL_BALL_RADIUS || duel.ball.y >= DUEL_HEIGHT - DUEL_BALL_RADIUS) {
+    duel.ball.y = Math.max(DUEL_BALL_RADIUS, Math.min(DUEL_HEIGHT - DUEL_BALL_RADIUS, duel.ball.y));
+    duel.ball.vy *= -1;
+  }
+
+  bounceDuelPaddle(duel, "left");
+  bounceDuelPaddle(duel, "right");
+
+  if (duel.ball.x < -DUEL_BALL_RADIUS) {
+    duel.score.right += 1;
+    resetDuelBall(duel, -1);
+  } else if (duel.ball.x > DUEL_WIDTH + DUEL_BALL_RADIUS) {
+    duel.score.left += 1;
+    resetDuelBall(duel, 1);
+  }
+}
+
+function bounceDuelPaddle(duel, side) {
+  const paddleX = side === "left" ? DUEL_PADDLE_X : DUEL_WIDTH - DUEL_PADDLE_X;
+  const paddleY = duel.paddles[side] * DUEL_HEIGHT;
+  const movingTowardPaddle = side === "left" ? duel.ball.vx < 0 : duel.ball.vx > 0;
+  const overlapsX =
+    Math.abs(duel.ball.x - paddleX) <= DUEL_BALL_RADIUS + 10;
+  const overlapsY =
+    Math.abs(duel.ball.y - paddleY) <= DUEL_PADDLE_HEIGHT / 2 + DUEL_BALL_RADIUS;
+
+  if (!movingTowardPaddle || !overlapsX || !overlapsY) {
+    return;
+  }
+
+  const hitOffset = (duel.ball.y - paddleY) / (DUEL_PADDLE_HEIGHT / 2);
+  const speed = Math.min(560, Math.hypot(duel.ball.vx, duel.ball.vy) + 18);
+  const direction = side === "left" ? 1 : -1;
+
+  duel.ball.vx = speed * direction;
+  duel.ball.vy = hitOffset * 260;
+  duel.ball.x = paddleX + direction * (DUEL_BALL_RADIUS + 12);
+}
+
+function clampUnit(value) {
+  const half = DUEL_PADDLE_HEIGHT / DUEL_HEIGHT / 2;
+  return Math.min(1 - half, Math.max(half, value));
+}
+
+function handleDuelPlayerLeave(room, socketId) {
+  const duel = room.duel;
+
+  if (!duel) {
+    return;
+  }
+
+  const wasLeft = duel.players.left?.id === socketId;
+  const wasRight = duel.players.right?.id === socketId;
+
+  if (duel.active && (wasLeft || wasRight)) {
+    duel.score[wasLeft ? "right" : "left"] += 1;
+    finishDuel(room.code, wasLeft ? "right" : "left");
+  }
+
+  if (wasLeft) {
+    duel.players.left = null;
+    duel.inputs.left = 0;
+  }
+
+  if (wasRight) {
+    duel.players.right = null;
+    duel.inputs.right = 0;
+  }
+}
+
+function finishDuel(roomCode, forcedWinner = "") {
+  const room = rooms.get(roomCode);
+
+  if (!room || !room.duel) {
+    return;
+  }
+
+  const duel = room.duel;
+  duel.active = false;
+  duel.ended = true;
+  duel.winner = forcedWinner || (duel.score.left > duel.score.right ? "left" : duel.score.right > duel.score.left ? "right" : "");
+  stopDuelLoop(roomCode);
+  awardDuelResults(room);
+  sendRoomUpdate(roomCode);
+  io.to(roomCode).emit("duel:ended", { state: getPublicDuelState(room) });
+}
+
+function awardDuelResults(room) {
+  const duel = room.duel;
+
+  if (!duel || duel.settled) {
+    return;
+  }
+
+  duel.settled = true;
+  ["left", "right"].forEach((side) => {
+    const player = duel.players[side];
+
+    if (!player) {
+      return;
+    }
+
+    const user = store.users.find((entry) => entry.id === player.accountId);
+
+    if (!user) {
+      return;
+    }
+
+    ensureUserShape(user);
+    const opposite = side === "left" ? "right" : "left";
+    const goalsFor = duel.score[side];
+    const goalsAgainst = duel.score[opposite];
+    const result = duel.winner ? (duel.winner === side ? "won" : "lost") : "draw";
+    const award = calculateDuelAward({ result, goalsFor, goalsAgainst });
+    const stats = user.stats.games.paddleduel;
+
+    user.totalPoints += award.points;
+    user.stats.gamesPlayed += 1;
+    user.stats.lastPlayedAt = Date.now();
+    stats.plays += 1;
+    stats.wins += result === "won" ? 1 : 0;
+    stats.draws += result === "draw" ? 1 : 0;
+    stats.goalsFor += goalsFor;
+    stats.goalsAgainst += goalsAgainst;
+    stats.lastResult = result;
+    stats.lastPlayedAt = Date.now();
+    user.recentResults.unshift({
+      game: "paddleduel",
+      result,
+      goalsFor,
+      goalsAgainst,
+      points: award.points,
+      playedAt: Date.now(),
+    });
+    user.recentResults = user.recentResults.slice(0, 12);
+
+    const profile = getPublicProfile(user);
+    player.totalPoints = profile.totalPoints;
+    player.level = profile.level;
+  });
+
+  saveStore();
+}
+
+function calculateDuelAward({ result, goalsFor, goalsAgainst }) {
+  const basePoints = 80;
+  const goalPoints = goalsFor * 65;
+  const defenseBonus = Math.max(0, 4 - goalsAgainst) * 18;
+  const resultBonus = result === "won" ? 260 : result === "draw" ? 140 : 40;
+
+  return {
+    points: basePoints + goalPoints + defenseBonus + resultBonus,
+    result,
+    goalsFor,
+    goalsAgainst,
+  };
 }
 
 function getSocketUser(token) {
@@ -801,6 +1203,39 @@ io.on("connection", (socket) => {
     player.status = "playing";
     player.updatedAt = Date.now();
     sendRoomUpdate(roomCode);
+  });
+
+  socket.on("duel:start", (_payload = {}, callback) => {
+    const roomCode = socket.data.roomCode;
+    const result = startDuel(roomCode, socket.id);
+
+    if (typeof callback === "function") {
+      callback(result);
+    }
+  });
+
+  socket.on("duel:input", (payload = {}) => {
+    const roomCode = socket.data.roomCode;
+    const room = rooms.get(roomCode);
+
+    if (!room?.duel) {
+      return;
+    }
+
+    syncDuelPlayers(room);
+    const duel = room.duel;
+    const side =
+      duel.players.left?.id === socket.id
+        ? "left"
+        : duel.players.right?.id === socket.id
+          ? "right"
+          : "";
+
+    if (!side) {
+      return;
+    }
+
+    duel.inputs[side] = Math.max(-1, Math.min(1, Number(payload.direction) || 0));
   });
 
   socket.on("room:leave", () => {

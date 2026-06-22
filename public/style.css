@@ -224,7 +224,7 @@ h2 {
 
 .game-catalog {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -481,6 +481,7 @@ h2 {
 }
 
 #flappy-restart-button,
+#duel-start-button,
 #mine-restart-button {
   padding: 0 16px;
   background: var(--accent);
@@ -489,6 +490,7 @@ h2 {
 }
 
 #flappy-restart-button:hover,
+#duel-start-button:hover,
 #mine-restart-button:hover {
   background: var(--accent-dark);
 }
@@ -988,6 +990,158 @@ h2 {
     0 0 10px rgba(24, 124, 104, 0.24);
 }
 
+.mine-model-stage.is-layer-mode {
+  min-height: auto;
+  display: block;
+  padding: 12px;
+  overflow: hidden;
+  cursor: default;
+  perspective: none;
+}
+
+.mine-model-stage.is-layer-mode::after,
+.mine-model-stage.is-layer-mode .mine-model-space {
+  display: none;
+}
+
+.mine-layer-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.mine-layer-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.mine-layer-tab {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 0.82rem;
+  box-shadow: none;
+}
+
+.mine-layer-tab.is-active {
+  border-color: rgba(24, 124, 104, 0.42);
+  background: rgba(24, 124, 104, 0.1);
+  color: var(--accent-dark);
+}
+
+.mine-layer-board {
+  display: grid;
+  grid-template-columns: repeat(var(--mine-layer-cols, 6), minmax(0, 1fr));
+  gap: 5px;
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding: 8px;
+  border-radius: 8px;
+  background: #53606b;
+  box-shadow: 0 10px 24px rgba(24, 33, 42, 0.14);
+}
+
+.mine-layer-cell {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(24, 33, 42, 0.12);
+  border-radius: 6px;
+  background: #c8d9d3;
+  color: #17212b;
+  font-size: clamp(0.8rem, 5vw, 1.35rem);
+  font-weight: 900;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.32),
+    inset 0 -4px 0 rgba(24, 33, 42, 0.08);
+  touch-action: manipulation;
+}
+
+.mine-layer-cell.is-inactive {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.mine-layer-cell.is-open {
+  background: #edf2ef;
+  box-shadow: inset 0 0 0 1px rgba(24, 33, 42, 0.06);
+}
+
+.mine-layer-cell.is-zero {
+  color: transparent;
+}
+
+.mine-layer-cell.is-number-1 {
+  color: #2c6fbb;
+}
+
+.mine-layer-cell.is-number-2 {
+  color: #187c68;
+}
+
+.mine-layer-cell.is-number-3 {
+  color: #d68631;
+}
+
+.mine-layer-cell.is-number-4,
+.mine-layer-cell.is-number-5,
+.mine-layer-cell.is-number-6,
+.mine-layer-cell.is-number-7,
+.mine-layer-cell.is-number-8 {
+  color: #9d2f3b;
+}
+
+.mine-layer-cell.has-flag {
+  background: #e6a044;
+}
+
+.mine-layer-cell.has-flag::before {
+  content: "";
+  position: absolute;
+  left: 42%;
+  top: 18%;
+  width: 3px;
+  height: 62%;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.mine-layer-cell.has-flag::after {
+  content: "";
+  position: absolute;
+  left: 48%;
+  top: 18%;
+  width: 36%;
+  height: 28%;
+  border-radius: 2px;
+  background: #d94f5b;
+  clip-path: polygon(0 0, 100% 12%, 100% 82%, 0 70%);
+}
+
+.mine-layer-cell.has-mine-mark {
+  background: #e47b85;
+}
+
+.mine-layer-cell.has-mine-mark::after {
+  content: "";
+  width: 42%;
+  height: 42%;
+  border-radius: 999px;
+  background: #17212b;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.78);
+}
+
 @media (hover: none), (max-width: 720px) {
   .mine-model-shell {
     padding: 18px 0;
@@ -1045,6 +1199,38 @@ h2 {
   box-shadow: var(--shadow);
   touch-action: none;
   user-select: none;
+}
+
+.duel-stage-wrap {
+  display: grid;
+  place-items: center;
+  width: 100%;
+}
+
+.duel-canvas {
+  display: block;
+  width: min(100%, 680px);
+  aspect-ratio: 5 / 3;
+  border: 1px solid rgba(24, 33, 42, 0.12);
+  border-radius: 8px;
+  background: #17324a;
+  box-shadow: var(--shadow);
+  touch-action: none;
+  user-select: none;
+}
+
+.duel-touch-controls {
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.duel-touch-controls button {
+  border: 1px solid rgba(44, 111, 187, 0.18);
+  background: #ffffff;
+  color: var(--blue);
+  box-shadow: 0 8px 16px rgba(44, 111, 187, 0.12);
 }
 
 .player-row {
@@ -1214,6 +1400,15 @@ h2 {
   .flappy-canvas {
     width: min(100%, 360px);
     box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
+  }
+
+  .duel-canvas {
+    width: 100%;
+    box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
+  }
+
+  .duel-touch-controls {
+    display: grid;
   }
 
   #restart-button {

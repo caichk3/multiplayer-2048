@@ -82,7 +82,7 @@
             <p class="eyebrow">小游戏</p>
             <h2>游戏列表</h2>
           </div>
-          <span id="catalog-count">3 个可玩</span>
+          <span id="catalog-count">4 个可玩</span>
         </div>
 
         <div class="game-catalog">
@@ -101,13 +101,18 @@
             <h3>Flappy 飞鸟</h3>
             <p>反应挑战 · 随机管道 · 分数竞速</p>
           </button>
+          <button class="game-card" type="button" data-game="paddleduel">
+            <span class="game-badge">对战</span>
+            <h3>挡板弹球</h3>
+            <p>双人实时 · 3 分钟限时 · 进门得分</p>
+          </button>
         </div>
       </section>
 
       <section class="room-panel" id="room-panel" aria-label="2048 房间">
         <div class="field game-label">
           <label>当前游戏</label>
-          <strong>2048 联机竞速</strong>
+          <strong id="room-game-label">2048 联机竞速</strong>
         </div>
 
         <div class="field room-code-field">
@@ -263,6 +268,46 @@
               height="560"
               aria-label="Flappy 飞鸟游戏画面"
             ></canvas>
+          </div>
+        </section>
+
+        <section class="game-panel game-view is-hidden" id="game-paddleduel" aria-label="挡板弹球">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">Paddle Duel</p>
+              <h2>挡板弹球</h2>
+            </div>
+
+            <div class="score-panel" aria-label="挡板弹球状态">
+              <div class="score-box">
+                <span>比分</span>
+                <strong id="duel-score">0 : 0</strong>
+              </div>
+              <div class="score-box">
+                <span>时间</span>
+                <strong id="duel-time">3:00</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="duel-status-text">创建或加入房间，满 2 人后开始。</p>
+            <button id="duel-start-button" type="button">开始对战</button>
+          </div>
+
+          <div class="duel-stage-wrap">
+            <canvas
+              id="duel-canvas"
+              class="duel-canvas"
+              width="800"
+              height="480"
+              aria-label="挡板弹球对战画面"
+            ></canvas>
+          </div>
+
+          <div class="duel-touch-controls" aria-label="挡板移动">
+            <button type="button" data-duel-move="up">上移</button>
+            <button type="button" data-duel-move="down">下移</button>
           </div>
         </section>
 
