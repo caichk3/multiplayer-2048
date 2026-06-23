@@ -1,9 +1,9 @@
 const crypto = require("crypto");
 const express = require("express");
-const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { Server } = require("socket.io");
+const { createEmptyStore, createStorePersistence } = require("./db");
 
 const app = express();
 const server = http.createServer(app);
@@ -13,6 +13,7 @@ const PORT = process.env.PORT || 3000;
 const publicPath = path.join(__dirname, "public");
 const dataDirectory = process.env.DATA_DIR || path.join(__dirname, "data");
 const usersPath = path.join(dataDirectory, "users.json");
+const persistence = createStorePersistence({ dataDirectory, usersPath });
 const rooms = new Map();
 const duelLoops = new Map();
 const DUEL_WIDTH = 800;
@@ -26,10 +27,10 @@ const DUEL_BALL_RADIUS = 11;
 app.use(express.json({ limit: "32kb" }));
 app.use(express.static(publicPath));
 
-let store = loadStore();
+let store = createEmptyStore();
 
 app.get("/health", (_request, response) => {
-  response.json({ ok: true });
+  response.json({ ok: true, storage: persistence.getStorageMode() });
 });
 
 app.post("/api/auth/register", (request, response) => {
@@ -292,29 +293,10 @@ app.post("/api/games/flappy/results", requireAuth, (request, response) => {
   });
 });
 
-function loadStore() {
-  fs.mkdirSync(dataDirectory, { recursive: true });
-
-  if (!fs.existsSync(usersPath)) {
-    return { users: [], sessions: [] };
-  }
-
-  try {
-    const parsed = JSON.parse(fs.readFileSync(usersPath, "utf8"));
-    return {
-      users: Array.isArray(parsed.users) ? parsed.users : [],
-      sessions: Array.isArray(parsed.sessions) ? parsed.sessions : [],
-    };
-  } catch (error) {
-    const brokenPath = `${usersPath}.broken-${Date.now()}`;
-    fs.copyFileSync(usersPath, brokenPath);
-    return { users: [], sessions: [] };
-  }
-}
-
 function saveStore() {
-  fs.mkdirSync(dataDirectory, { recursive: true });
-  fs.writeFileSync(usersPath, JSON.stringify(store, null, 2));
+  persistence.saveStore(store).catch((error) => {
+    console.error(`[db] Failed to save user store: ${error.message}`);
+  });
 }
 
 function createDefaultStats() {
@@ -1247,6 +1229,19 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Arcade server is running on port ${PORT}`);
-});
+async function bootstrap() {
+  try {
+    store = await persistence.loadStore();
+    store.users.forEach((user) => ensureUserShape(user));
+    server.listen(PORT, "0.0.0.0", () => {
+      console.log(
+        `Arcade server is running on port ${PORT} with ${persistence.getStorageMode()} storage`,
+      );
+    });
+  } catch (error) {
+    console.error(`[db] Failed to start server: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+bootstrap();
