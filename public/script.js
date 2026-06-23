@@ -64,6 +64,7 @@ const dodgeCanvas = document.querySelector("#dodge-canvas");
 const dodgeContext = dodgeCanvas.getContext("2d");
 const dodgeStatusText = document.querySelector("#dodge-status-text");
 const dodgeRestartButton = document.querySelector("#dodge-restart-button");
+const dodgeDifficultySelect = document.querySelector("#dodge-difficulty");
 const dodgeTimeElement = document.querySelector("#dodge-time");
 const dodgeGrazesElement = document.querySelector("#dodge-grazes");
 const dodgeBestElement = document.querySelector("#dodge-best");
@@ -90,6 +91,7 @@ const currentGameKey = "class-arcade-current-game";
 const mineDifficultyKey = "class-arcade-minesweeper-difficulty";
 const flappyBestKey = "class-arcade-flappy-best";
 const dodgeBestKey = "class-arcade-dodge-best";
+const dodgeDifficultyKey = "class-arcade-dodge-difficulty";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const mineDifficulties = {
   easy: {
@@ -142,11 +144,58 @@ const dodgeSettings = {
   width: 640,
   height: 480,
   planeRadius: 12,
-  planeSpeed: 4.6,
   bulletRadius: 6,
   grazeRadius: 26,
-  baseSpawnMs: 720,
-  minSpawnMs: 150,
+};
+const dodgeDifficulties = {
+  easy: {
+    label: "入门",
+    planeSpeed: 4.85,
+    baseSpawnMs: 560,
+    minSpawnMs: 170,
+    speedBase: 2.35,
+    speedRandom: 1.25,
+    speedGrowth: 0.035,
+    pressureSeconds: 58,
+    doubleChance: 0.16,
+    earlyBurstAfter: 22,
+  },
+  normal: {
+    label: "标准",
+    planeSpeed: 4.75,
+    baseSpawnMs: 460,
+    minSpawnMs: 120,
+    speedBase: 2.8,
+    speedRandom: 1.55,
+    speedGrowth: 0.045,
+    pressureSeconds: 50,
+    doubleChance: 0.26,
+    earlyBurstAfter: 14,
+  },
+  hard: {
+    label: "困难",
+    planeSpeed: 4.65,
+    baseSpawnMs: 360,
+    minSpawnMs: 90,
+    speedBase: 3.2,
+    speedRandom: 1.8,
+    speedGrowth: 0.055,
+    pressureSeconds: 42,
+    doubleChance: 0.38,
+    earlyBurstAfter: 8,
+  },
+  expert: {
+    label: "专家",
+    planeSpeed: 4.55,
+    baseSpawnMs: 270,
+    minSpawnMs: 68,
+    speedBase: 3.65,
+    speedRandom: 2.05,
+    speedGrowth: 0.068,
+    pressureSeconds: 34,
+    doubleChance: 0.5,
+    earlyBurstAfter: 4,
+  },
 };
 const text = {
   ready: "已经进入房间，开始挑战吧。本局结束或重新开始时会结算平台积分。",
@@ -239,6 +288,7 @@ let dodgeGameOver = false;
 let dodgeStartedAt = 0;
 let dodgeElapsed = 0;
 let dodgeBest = Number(localStorage.getItem(dodgeBestKey)) || 0;
+let dodgeDifficulty = localStorage.getItem(dodgeDifficultyKey) || "normal";
 let dodgeGrazes = 0;
 let dodgeAnimationId = null;
 let dodgeLastFrameTime = 0;
@@ -250,6 +300,10 @@ let duelInputDirection = 0;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
+}
+
+if (!dodgeDifficulties[dodgeDifficulty]) {
+  dodgeDifficulty = "normal";
 }
 
 function createGameId() {
@@ -295,6 +349,21 @@ function setMineDifficulty(value) {
   startMinesweeperGame();
 }
 
+function getDodgeDifficulty() {
+  return dodgeDifficulties[dodgeDifficulty] || dodgeDifficulties.normal;
+}
+
+function setDodgeDifficulty(value) {
+  if (!dodgeDifficulties[value]) {
+    return;
+  }
+
+  dodgeDifficulty = value;
+  localStorage.setItem(dodgeDifficultyKey, dodgeDifficulty);
+  dodgeDifficultySelect.value = dodgeDifficulty;
+  resetDodgeGame();
+}
+
 function setupBoardMarkup() {
   boardElement.innerHTML = "";
 
@@ -327,6 +396,7 @@ function setupMinesweeperMarkup() {
       <div class="mine-layer-shell">
         <div class="mine-layer-tabs" id="mine-layer-tabs" aria-label="扫雷层数"></div>
         <div class="mine-layer-board" id="mine-layer-board" aria-label="当前层扫雷棋盘"></div>
+        <div class="mine-neighbor-layers" id="mine-neighbor-layers" aria-label="相邻层扫雷状态"></div>
       </div>
     `;
     mineModelStage.appendChild(shell);
@@ -459,7 +529,9 @@ function updateRoomActions() {
     flappyStatusText.textContent = flappyGameOver ? text.flappyOver : text.flappyReady;
     renderFlappy();
   } else if (showDodge) {
-    dodgeStatusText.textContent = dodgeGameOver ? text.dodgeOver : text.dodgeReady;
+    dodgeStatusText.textContent = dodgeGameOver
+      ? text.dodgeOver
+      : `${getDodgeDifficulty().label}难度：${text.dodgeReady}`;
     renderDodge();
   } else if (showDuel) {
     renderDuel();
@@ -1706,6 +1778,8 @@ function formatDodgeTime(seconds) {
 }
 
 function resetDodgeGame(options = {}) {
+  const difficulty = getDodgeDifficulty();
+
   stopDodgeLoop();
   dodgeGameId = createGameId();
   dodgePlane = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
@@ -1724,7 +1798,8 @@ function resetDodgeGame(options = {}) {
   dodgeGrazesElement.textContent = "0";
   dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
   dodgeRestartButton.textContent = "开始";
-  dodgeStatusText.textContent = options.readyText || text.dodgeReady;
+  dodgeStatusText.textContent =
+    options.readyText || `${difficulty.label}难度：${text.dodgeReady}`;
   renderDodge();
 }
 
@@ -1741,7 +1816,7 @@ function startDodgeGame() {
   dodgeStartedAt = dodgeStartedAt || Date.now();
   dodgeLastFrameTime = performance.now();
   dodgeRestartButton.textContent = "重新开始";
-  dodgeStatusText.textContent = text.dodgePlaying;
+  dodgeStatusText.textContent = `${getDodgeDifficulty().label}难度：${text.dodgePlaying}`;
   dodgeAnimationId = window.requestAnimationFrame(updateDodgeFrame);
 }
 
@@ -1819,6 +1894,7 @@ function stepDodge(delta) {
 }
 
 function updateDodgePlane(delta) {
+  const difficulty = getDodgeDifficulty();
   let inputX = 0;
   let inputY = 0;
 
@@ -1829,8 +1905,8 @@ function updateDodgePlane(delta) {
 
   if (inputX !== 0 || inputY !== 0) {
     const length = Math.hypot(inputX, inputY) || 1;
-    dodgePlane.x += (inputX / length) * dodgeSettings.planeSpeed * delta;
-    dodgePlane.y += (inputY / length) * dodgeSettings.planeSpeed * delta;
+    dodgePlane.x += (inputX / length) * difficulty.planeSpeed * delta;
+    dodgePlane.y += (inputY / length) * difficulty.planeSpeed * delta;
     dodgeTarget = { ...dodgePlane };
   } else {
     dodgePlane.x += (dodgeTarget.x - dodgePlane.x) * Math.min(1, 0.16 * delta);
@@ -1843,11 +1919,13 @@ function updateDodgePlane(delta) {
 }
 
 function getDodgeSpawnDelay() {
-  const pressure = Math.min(1, dodgeElapsed / 58);
-  return dodgeSettings.baseSpawnMs - (dodgeSettings.baseSpawnMs - dodgeSettings.minSpawnMs) * pressure;
+  const difficulty = getDodgeDifficulty();
+  const pressure = Math.min(1, dodgeElapsed / difficulty.pressureSeconds);
+  return difficulty.baseSpawnMs - (difficulty.baseSpawnMs - difficulty.minSpawnMs) * pressure;
 }
 
 function spawnDodgeBullet() {
+  const difficulty = getDodgeDifficulty();
   const side = Math.floor(Math.random() * 4);
   const margin = 32;
   let x = 0;
@@ -1871,7 +1949,10 @@ function spawnDodgeBullet() {
   const targetX = dodgePlane.x + (Math.random() - 0.5) * drift;
   const targetY = dodgePlane.y + (Math.random() - 0.5) * drift;
   const angle = Math.atan2(targetY - y, targetX - x);
-  const speed = 2.15 + Math.random() * 1.35 + Math.min(2.25, dodgeElapsed * 0.035);
+  const speed =
+    difficulty.speedBase +
+    Math.random() * difficulty.speedRandom +
+    Math.min(2.75, dodgeElapsed * difficulty.speedGrowth);
 
   dodgeBullets.push({
     x,
@@ -1884,7 +1965,7 @@ function spawnDodgeBullet() {
     hue: 18 + Math.random() * 28,
   });
 
-  if (dodgeElapsed > 18 && Math.random() < 0.2) {
+  if (dodgeElapsed > difficulty.earlyBurstAfter && Math.random() < difficulty.doubleChance) {
     const offsetAngle = angle + (Math.random() > 0.5 ? 0.12 : -0.12);
     dodgeBullets.push({
       x,
@@ -2326,8 +2407,9 @@ function renderMinesweeperLayerBoard(config) {
   mineLayerView = Math.max(0, Math.min(config.layers - 1, mineLayerView));
   const tabs = mineModelStage.querySelector("#mine-layer-tabs");
   const board = mineModelStage.querySelector("#mine-layer-board");
+  const neighbors = mineModelStage.querySelector("#mine-neighbor-layers");
 
-  if (!tabs || !board) {
+  if (!tabs || !board || !neighbors) {
     setupMinesweeperMarkup();
     renderMinesweeperLayerBoard(config);
     return;
@@ -2335,6 +2417,7 @@ function renderMinesweeperLayerBoard(config) {
 
   tabs.innerHTML = "";
   board.innerHTML = "";
+  neighbors.innerHTML = "";
   board.style.setProperty("--mine-layer-cols", String(config.cols));
 
   for (let layer = 0; layer < config.layers; layer += 1) {
@@ -2368,6 +2451,57 @@ function renderMinesweeperLayerBoard(config) {
       board.appendChild(button);
     }
   }
+
+  renderMineNeighborLayers(config, neighbors);
+}
+
+function renderMineNeighborLayers(config, container) {
+  const neighborLayers = [
+    { layer: mineLayerView - 1, label: "上一层" },
+    { layer: mineLayerView + 1, label: "下一层" },
+  ].filter(({ layer }) => layer >= 0 && layer < config.layers);
+
+  container.hidden = neighborLayers.length === 0;
+
+  neighborLayers.forEach(({ layer, label }) => {
+    const panel = document.createElement("section");
+    const title = document.createElement("button");
+    const preview = document.createElement("div");
+    const layerCells = mineBoard[layer]?.flat().filter((cell) => cell.active) || [];
+    const layerFlags = layerCells.filter((cell) => cell.flagged).length;
+    const layerOpen = layerCells.filter((cell) => cell.open).length;
+
+    panel.className = "mine-neighbor-panel";
+    title.type = "button";
+    title.className = "mine-neighbor-title";
+    title.textContent = `${label} ${layer + 1}/${config.layers} · ${layerOpen}/${layerCells.length}${layerFlags ? ` · 旗${layerFlags}` : ""}`;
+    title.addEventListener("click", () => {
+      mineLayerView = layer;
+      renderMinesweeperBoard();
+    });
+
+    preview.className = "mine-neighbor-board";
+    preview.style.setProperty("--mine-layer-cols", String(config.cols));
+
+    for (let row = 0; row < config.rows; row += 1) {
+      for (let column = 0; column < config.cols; column += 1) {
+        const cell = getMineCell(layer, row, column);
+        const item = document.createElement("span");
+
+        item.className = "mine-layer-cell mine-neighbor-cell";
+        item.setAttribute("aria-hidden", "true");
+        updateMineLayerCell(item, layer, row, column, cell);
+        item.classList.add("mine-neighbor-cell");
+        item.removeAttribute("aria-label");
+        item.removeAttribute("disabled");
+        preview.appendChild(item);
+      }
+    }
+
+    panel.appendChild(title);
+    panel.appendChild(preview);
+    container.appendChild(panel);
+  });
 }
 
 function updateMineLayerCell(button, layer, row, column, cell) {
@@ -2377,7 +2511,11 @@ function updateMineLayerCell(button, layer, row, column, cell) {
 
   button.className = "mine-layer-cell";
   button.textContent = mark.type === "number" ? mark.text : "";
-  button.disabled = !cell?.active;
+
+  if ("disabled" in button) {
+    button.disabled = !cell?.active;
+  }
+
   button.classList.toggle("is-inactive", !cell?.active);
   button.classList.toggle("is-open", Boolean(cell?.open));
   button.classList.toggle("is-zero", Boolean(cell?.open && cell.adjacent === 0 && !cell.mine));
@@ -2877,7 +3015,11 @@ async function settleMinesweeperGame(reason) {
 function getMineActionButton(target) {
   const button = target.closest(".mine-layer-cell, .mine-cube");
 
-  if (!button || button.classList.contains("mine-reference-cube")) {
+  if (
+    !button ||
+    button.classList.contains("mine-reference-cube") ||
+    button.classList.contains("mine-neighbor-cell")
+  ) {
     return null;
   }
 
@@ -3194,6 +3336,9 @@ mineExpandButton.addEventListener("click", toggleMineModelExpanded);
 mineDifficultySelect.addEventListener("change", () => {
   setMineDifficulty(mineDifficultySelect.value);
 });
+dodgeDifficultySelect.addEventListener("change", () => {
+  setDodgeDifficulty(dodgeDifficultySelect.value);
+});
 flappyRestartButton.addEventListener("click", () => {
   if (flappyRunning) {
     resetFlappyGame();
@@ -3287,6 +3432,7 @@ window.addEventListener("resize", () => {
 
 setupBoardMarkup();
 mineDifficultySelect.value = mineDifficulty;
+dodgeDifficultySelect.value = dodgeDifficulty;
 setupMinesweeperMarkup();
 board = createEmptyBoard();
 mineBoard = createMineBoard();

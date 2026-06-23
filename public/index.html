@@ -310,7 +310,16 @@
 
           <div class="controls">
             <p id="dodge-status-text">点击画面或按空格开始，移动飞机躲避随机子弹。</p>
-            <button id="dodge-restart-button" type="button">开始</button>
+            <div class="dodge-controls">
+              <label for="dodge-difficulty">难度</label>
+              <select id="dodge-difficulty">
+                <option value="easy">入门</option>
+                <option value="normal">标准</option>
+                <option value="hard">困难</option>
+                <option value="expert">专家</option>
+              </select>
+              <button id="dodge-restart-button" type="button">开始</button>
+            </div>
           </div>
 
           <div class="dodge-stage-wrap">

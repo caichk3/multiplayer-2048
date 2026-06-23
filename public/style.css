@@ -457,19 +457,22 @@ h2 {
   line-height: 1.45;
 }
 
-.mine-controls {
+.mine-controls,
+.dodge-controls {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
-.mine-controls label {
+.mine-controls label,
+.dodge-controls label {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 900;
 }
 
-.mine-controls select {
+.mine-controls select,
+.dodge-controls select {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1210,6 +1213,44 @@ h2 {
   box-shadow: 0 10px 24px rgba(24, 33, 42, 0.14);
 }
 
+.mine-neighbor-layers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: min(100%, 420px);
+  margin: 2px auto 0;
+}
+
+.mine-neighbor-layers[hidden] {
+  display: none;
+}
+
+.mine-neighbor-panel {
+  min-width: 0;
+}
+
+.mine-neighbor-title {
+  width: 100%;
+  min-height: 32px;
+  margin-bottom: 6px;
+  padding: 0 8px;
+  border: 1px solid rgba(24, 124, 104, 0.18);
+  background: rgba(24, 124, 104, 0.08);
+  color: var(--accent-dark);
+  font-size: 0.76rem;
+  box-shadow: none;
+}
+
+.mine-neighbor-board {
+  display: grid;
+  grid-template-columns: repeat(var(--mine-layer-cols, 6), minmax(0, 1fr));
+  gap: 3px;
+  padding: 6px;
+  border-radius: 8px;
+  background: rgba(83, 96, 107, 0.76);
+  box-shadow: inset 0 0 0 1px rgba(24, 33, 42, 0.08);
+}
+
 .mine-layer-cell {
   position: relative;
   display: grid;
@@ -1228,6 +1269,22 @@ h2 {
     inset 0 1px 0 rgba(255, 255, 255, 0.32),
     inset 0 -4px 0 rgba(24, 33, 42, 0.08);
   touch-action: manipulation;
+}
+
+.mine-neighbor-cell {
+  border-radius: 4px;
+  font-size: clamp(0.56rem, 2.5vw, 0.82rem);
+  opacity: 0.92;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.mine-neighbor-cell.has-flag::before {
+  width: 2px;
+}
+
+.mine-neighbor-cell.has-mine-mark::after {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.78);
 }
 
 .mine-layer-cell.is-inactive {
@@ -1569,18 +1626,25 @@ h2 {
     width: 100%;
   }
 
-  .mine-controls {
+  .mine-controls,
+  .dodge-controls {
     align-items: stretch;
     flex-wrap: wrap;
   }
 
   .mine-controls select,
-  .mine-controls button {
+  .mine-controls button,
+  .dodge-controls select,
+  .dodge-controls button {
     flex: 1 1 130px;
   }
 
   .mine-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mine-neighbor-layers {
+    grid-template-columns: 1fr;
   }
 
   .mine-model-stage {
