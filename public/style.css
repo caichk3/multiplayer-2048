@@ -645,6 +645,17 @@ h2 {
   line-height: 1.5;
 }
 
+.message-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.message-actions button {
+  flex: 1 1 128px;
+}
+
 .leaderboard-head {
   margin-bottom: 14px;
 }
@@ -856,6 +867,28 @@ h2 {
   --left-lightness: 37%;
   --top-lightness: 62%;
   --bottom-lightness: 34%;
+}
+
+.mine-model-stage:not(.is-layer-mode) .mine-cube.is-open:not(.has-mine-mark) .cube-face {
+  --cube-saturation: 22%;
+  --front-lightness: 80%;
+  --right-lightness: 72%;
+  --left-lightness: 66%;
+  --top-lightness: 88%;
+  --bottom-lightness: 60%;
+  border-color: rgba(24, 33, 42, 0.26);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 255, 255, 0.34),
+    inset 0 0 16px rgba(255, 255, 255, 0.2);
+}
+
+.mine-model-stage:not(.is-layer-mode) .mine-cube.is-open.is-zero .cube-face {
+  --cube-saturation: 14%;
+  --front-lightness: 86%;
+  --right-lightness: 78%;
+  --left-lightness: 72%;
+  --top-lightness: 92%;
+  --bottom-lightness: 66%;
 }
 
 .cube-front {

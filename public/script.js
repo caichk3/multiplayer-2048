@@ -6,6 +6,7 @@ const message = document.querySelector("#message");
 const messageTitle = document.querySelector("#message-title");
 const messageCopy = document.querySelector("#message-copy");
 const messageButton = document.querySelector("#message-button");
+const messageSecondaryButton = document.querySelector("#message-secondary-button");
 const statusText = document.querySelector("#status-text");
 const roomCodeInput = document.querySelector("#room-code");
 const createRoomButton = document.querySelector("#create-room-button");
@@ -684,8 +685,11 @@ function update2048BestScore() {
 function check2048GameState() {
   if (!won && board.flat().includes(2048)) {
     won = true;
-    showMessage(text.wonTitle, text.wonCopy, false);
-    statusText.textContent = text.wonStatus;
+    showMessage(text.wonTitle, "已经合成 2048，要现在结算重开，还是继续冲更高分？", false, {
+      primaryLabel: "继续游戏",
+      secondaryLabel: "结算并重开",
+    });
+    statusText.textContent = "已经合成 2048，可以选择结算重开，或继续冲更高分。";
     return;
   }
 
@@ -717,9 +721,16 @@ function can2048Move() {
   return false;
 }
 
-function showMessage(title, copy, lockGame) {
+function showMessage(title, copy, lockGame, options = {}) {
   messageTitle.textContent = title;
   messageCopy.textContent = copy;
+  messageButton.textContent = options.primaryLabel || (lockGame ? "再来一局" : "继续游戏");
+  messageSecondaryButton.hidden = !options.secondaryLabel;
+
+  if (options.secondaryLabel) {
+    messageSecondaryButton.textContent = options.secondaryLabel;
+  }
+
   message.classList.remove("is-hidden");
   gameFinished = lockGame;
 }
@@ -730,6 +741,13 @@ function hideMessageAndContinue() {
   } else {
     start2048Game();
   }
+}
+
+async function settleAndRestart2048() {
+  message.classList.add("is-hidden");
+  gameFinished = true;
+  await settle2048Game("won-restart");
+  start2048Game({ settlePrevious: false });
 }
 
 async function settle2048Game(reason) {
@@ -2652,6 +2670,7 @@ flappyRestartButton.addEventListener("click", () => {
 });
 duelStartButton.addEventListener("click", requestDuelStart);
 messageButton.addEventListener("click", hideMessageAndContinue);
+messageSecondaryButton.addEventListener("click", settleAndRestart2048);
 gameCards.forEach((card) => {
   card.addEventListener("click", () => setActiveGame(card.dataset.game));
 });
