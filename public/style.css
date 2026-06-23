@@ -177,7 +177,7 @@ h2 {
 
 .profile-strip {
   display: grid;
-  grid-template-columns: repeat(6, minmax(82px, auto)) auto;
+  grid-template-columns: repeat(7, minmax(82px, auto)) auto;
   align-items: center;
   gap: 10px;
 }
@@ -224,7 +224,7 @@ h2 {
 
 .game-catalog {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -481,6 +481,7 @@ h2 {
 }
 
 #flappy-restart-button,
+#dodge-restart-button,
 #duel-start-button,
 #mine-restart-button {
   padding: 0 16px;
@@ -490,6 +491,7 @@ h2 {
 }
 
 #flappy-restart-button:hover,
+#dodge-restart-button:hover,
 #duel-start-button:hover,
 #mine-restart-button:hover {
   background: var(--accent-dark);
@@ -1358,6 +1360,13 @@ h2 {
   padding: 6px 0;
 }
 
+.dodge-stage-wrap {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 6px 0;
+}
+
 .flappy-canvas {
   display: block;
   width: min(100%, 420px);
@@ -1365,6 +1374,18 @@ h2 {
   border: 1px solid rgba(24, 33, 42, 0.12);
   border-radius: 8px;
   background: #a9d8f5;
+  box-shadow: var(--shadow);
+  touch-action: none;
+  user-select: none;
+}
+
+.dodge-canvas {
+  display: block;
+  width: min(100%, 680px);
+  aspect-ratio: 4 / 3;
+  border: 1px solid rgba(24, 33, 42, 0.12);
+  border-radius: 8px;
+  background: #101926;
   box-shadow: var(--shadow);
   touch-action: none;
   user-select: none;
@@ -1571,6 +1592,11 @@ h2 {
     box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
   }
 
+  .dodge-canvas {
+    width: 100%;
+    box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
+  }
+
   .duel-canvas {
     width: 100%;
     box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
@@ -1612,6 +1638,10 @@ h2 {
 
   .flappy-canvas {
     width: min(100%, 330px);
+  }
+
+  .dodge-canvas {
+    width: 100%;
   }
 
   .cell {

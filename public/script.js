@@ -34,11 +34,13 @@ const profilePoints = document.querySelector("#profile-points");
 const profileBest = document.querySelector("#profile-best");
 const profileMinesweeperWins = document.querySelector("#profile-minesweeper-wins");
 const profileFlappyBest = document.querySelector("#profile-flappy-best");
+const profileDodgeBest = document.querySelector("#profile-dodge-best");
 const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"));
 const roomPanel = document.querySelector("#room-panel");
 const game2048Panel = document.querySelector("#game-2048");
 const gameMinesweeperPanel = document.querySelector("#game-minesweeper3d");
 const gameFlappyPanel = document.querySelector("#game-flappy");
+const gameDodgePanel = document.querySelector("#game-dodge");
 const gameDuelPanel = document.querySelector("#game-paddleduel");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
@@ -58,6 +60,13 @@ const flappyStatusText = document.querySelector("#flappy-status-text");
 const flappyRestartButton = document.querySelector("#flappy-restart-button");
 const flappyScoreElement = document.querySelector("#flappy-score");
 const flappyBestElement = document.querySelector("#flappy-best");
+const dodgeCanvas = document.querySelector("#dodge-canvas");
+const dodgeContext = dodgeCanvas.getContext("2d");
+const dodgeStatusText = document.querySelector("#dodge-status-text");
+const dodgeRestartButton = document.querySelector("#dodge-restart-button");
+const dodgeTimeElement = document.querySelector("#dodge-time");
+const dodgeGrazesElement = document.querySelector("#dodge-grazes");
+const dodgeBestElement = document.querySelector("#dodge-best");
 const duelCanvas = document.querySelector("#duel-canvas");
 const duelContext = duelCanvas.getContext("2d");
 const duelScoreElement = document.querySelector("#duel-score");
@@ -70,6 +79,7 @@ const socket = io();
 const GAME_2048 = "2048";
 const GAME_MINESWEEPER = "minesweeper3d";
 const GAME_FLAPPY = "flappy";
+const GAME_DODGE = "dodge";
 const GAME_DUEL = "paddleduel";
 const size = 4;
 const totalCells = size * size;
@@ -79,6 +89,7 @@ const nameKey = "class-arcade-name";
 const currentGameKey = "class-arcade-current-game";
 const mineDifficultyKey = "class-arcade-minesweeper-difficulty";
 const flappyBestKey = "class-arcade-flappy-best";
+const dodgeBestKey = "class-arcade-dodge-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const mineDifficulties = {
   easy: {
@@ -127,6 +138,16 @@ const flappySettings = {
   pipeSpeed: 2.65,
   groundHeight: 62,
 };
+const dodgeSettings = {
+  width: 640,
+  height: 480,
+  planeRadius: 12,
+  planeSpeed: 4.6,
+  bulletRadius: 6,
+  grazeRadius: 26,
+  baseSpawnMs: 720,
+  minSpawnMs: 150,
+};
 const text = {
   ready: "已经进入房间，开始挑战吧。本局结束或重新开始时会结算平台积分。",
   waiting: "先登录账号，再创建或加入房间。",
@@ -142,6 +163,9 @@ const text = {
   flappyReady: "点击、触屏或按空格起飞，穿过管道拿分。",
   flappyPlaying: "保持节奏，别碰到管道或地面。",
   flappyOver: "撞到了，本局分数已结算。",
+  dodgeReady: "点击画面或按空格开始，移动飞机躲避随机子弹。",
+  dodgePlaying: "保持移动，子弹会越来越密，贴近躲开可以擦弹加分。",
+  dodgeOver: "被击中了，本局时间已结算。",
 };
 
 let currentGame = localStorage.getItem(currentGameKey) || GAME_2048;
@@ -204,6 +228,22 @@ let flappyLastFrameTime = 0;
 let flappySettled = false;
 let flappyGroundOffset = 0;
 let flappyClouds = [];
+let dodgeGameId = createGameId();
+let dodgePlane = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
+let dodgeTarget = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
+let dodgeBullets = [];
+let dodgeSparks = [];
+let dodgeKeys = new Set();
+let dodgeRunning = false;
+let dodgeGameOver = false;
+let dodgeStartedAt = 0;
+let dodgeElapsed = 0;
+let dodgeBest = Number(localStorage.getItem(dodgeBestKey)) || 0;
+let dodgeGrazes = 0;
+let dodgeAnimationId = null;
+let dodgeLastFrameTime = 0;
+let dodgeNextSpawnIn = 0;
+let dodgeSettled = false;
 let duelState = null;
 let duelSide = "";
 let duelInputDirection = 0;
@@ -359,6 +399,7 @@ function renderAccount(nextProfile) {
     joinRoomButton.disabled = true;
     profileMinesweeperWins.textContent = "0";
     profileFlappyBest.textContent = "0";
+    profileDodgeBest.textContent = "0.0s";
     updateRoomActions();
     return;
   }
@@ -376,6 +417,10 @@ function renderAccount(nextProfile) {
   localStorage.setItem(flappyBestKey, String(flappyBest));
   profileFlappyBest.textContent = String(flappyBest);
   flappyBestElement.textContent = String(flappyBest);
+  dodgeBest = Math.max(dodgeBest, profile.stats.dodge?.bestTime || 0);
+  localStorage.setItem(dodgeBestKey, String(dodgeBest));
+  profileDodgeBest.textContent = formatDodgeTime(dodgeBest);
+  dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
   profileStrip.hidden = false;
   accountForm.hidden = true;
   createRoomButton.disabled = false;
@@ -387,6 +432,7 @@ function updateRoomActions() {
   const show2048 = currentGame === GAME_2048;
   const showMinesweeper = currentGame === GAME_MINESWEEPER;
   const showFlappy = currentGame === GAME_FLAPPY;
+  const showDodge = currentGame === GAME_DODGE;
   const showDuel = currentGame === GAME_DUEL;
   const showRoom = show2048 || showDuel;
   roomPanel.hidden = !showRoom;
@@ -394,6 +440,7 @@ function updateRoomActions() {
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
+  gameDodgePanel.classList.toggle("is-hidden", !showDodge);
   gameDuelPanel.classList.toggle("is-hidden", !showDuel);
 
   gameCards.forEach((card) => {
@@ -411,6 +458,9 @@ function updateRoomActions() {
   } else if (showFlappy) {
     flappyStatusText.textContent = flappyGameOver ? text.flappyOver : text.flappyReady;
     renderFlappy();
+  } else if (showDodge) {
+    dodgeStatusText.textContent = dodgeGameOver ? text.dodgeOver : text.dodgeReady;
+    renderDodge();
   } else if (showDuel) {
     renderDuel();
     updateDuelStatus();
@@ -428,7 +478,11 @@ function setActiveGame(gameId, options = {}) {
     setDuelInput(0);
   }
 
-  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_DUEL].includes(gameId)
+  if (currentGame === GAME_DODGE && gameId !== GAME_DODGE) {
+    dodgeKeys.clear();
+  }
+
+  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_DODGE, GAME_DUEL].includes(gameId)
     ? gameId
     : GAME_2048;
 
@@ -812,6 +866,23 @@ function handleKeyDown(event) {
     return;
   }
 
+  if (currentGame === GAME_DODGE) {
+    const direction = getDodgeDirection(event.key);
+
+    if (direction) {
+      event.preventDefault();
+      dodgeKeys.add(direction);
+      startDodgeGame();
+      return;
+    }
+
+    if (event.key === " ") {
+      event.preventDefault();
+      startDodgeGame();
+      return;
+    }
+  }
+
   if (currentGame === GAME_FLAPPY) {
     if ([" ", "ArrowUp", "w", "W"].includes(event.key)) {
       event.preventDefault();
@@ -837,6 +908,16 @@ function handleKeyDown(event) {
 }
 
 function handleKeyUp(event) {
+  if (currentGame === GAME_DODGE) {
+    const direction = getDodgeDirection(event.key);
+
+    if (direction) {
+      event.preventDefault();
+      dodgeKeys.delete(direction);
+      return;
+    }
+  }
+
   if (currentGame !== GAME_DUEL) {
     return;
   }
@@ -857,6 +938,25 @@ function getDuelDirection(key) {
   }
 
   return 0;
+}
+
+function getDodgeDirection(key) {
+  const directions = {
+    ArrowLeft: "left",
+    a: "left",
+    A: "left",
+    ArrowRight: "right",
+    d: "right",
+    D: "right",
+    ArrowUp: "up",
+    w: "up",
+    W: "up",
+    ArrowDown: "down",
+    s: "down",
+    S: "down",
+  };
+
+  return directions[key] || "";
 }
 
 function handleTouchStart(event) {
@@ -1072,7 +1172,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
 
     info.append(name, meta);
 
@@ -1599,6 +1699,425 @@ function drawFlappyOverlay(context) {
     context.font = "800 16px Inter, Arial, sans-serif";
     context.fillText(`本局 ${flappyScore} 分`, flappySettings.width / 2, 276);
   }
+}
+
+function formatDodgeTime(seconds) {
+  return `${Math.max(0, seconds).toFixed(1)}s`;
+}
+
+function resetDodgeGame(options = {}) {
+  stopDodgeLoop();
+  dodgeGameId = createGameId();
+  dodgePlane = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
+  dodgeTarget = { ...dodgePlane };
+  dodgeBullets = [];
+  dodgeSparks = [];
+  dodgeKeys.clear();
+  dodgeRunning = false;
+  dodgeGameOver = false;
+  dodgeStartedAt = 0;
+  dodgeElapsed = 0;
+  dodgeGrazes = 0;
+  dodgeNextSpawnIn = 360;
+  dodgeSettled = false;
+  dodgeTimeElement.textContent = formatDodgeTime(0);
+  dodgeGrazesElement.textContent = "0";
+  dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
+  dodgeRestartButton.textContent = "开始";
+  dodgeStatusText.textContent = options.readyText || text.dodgeReady;
+  renderDodge();
+}
+
+function startDodgeGame() {
+  if (dodgeRunning) {
+    return;
+  }
+
+  if (dodgeGameOver) {
+    resetDodgeGame();
+  }
+
+  dodgeRunning = true;
+  dodgeStartedAt = dodgeStartedAt || Date.now();
+  dodgeLastFrameTime = performance.now();
+  dodgeRestartButton.textContent = "重新开始";
+  dodgeStatusText.textContent = text.dodgePlaying;
+  dodgeAnimationId = window.requestAnimationFrame(updateDodgeFrame);
+}
+
+function stopDodgeLoop() {
+  if (dodgeAnimationId) {
+    window.cancelAnimationFrame(dodgeAnimationId);
+    dodgeAnimationId = null;
+  }
+}
+
+function updateDodgeFrame(timestamp) {
+  if (!dodgeRunning) {
+    return;
+  }
+
+  const delta = Math.min(2.4, (timestamp - dodgeLastFrameTime) / 16.67 || 1);
+  dodgeLastFrameTime = timestamp;
+  stepDodge(delta);
+  renderDodge();
+
+  if (dodgeGameOver) {
+    finishDodgeGame();
+    return;
+  }
+
+  dodgeAnimationId = window.requestAnimationFrame(updateDodgeFrame);
+}
+
+function stepDodge(delta) {
+  dodgeElapsed = dodgeStartedAt ? (Date.now() - dodgeStartedAt) / 1000 : 0;
+  updateDodgePlane(delta);
+  dodgeNextSpawnIn -= delta * 16.67;
+
+  while (dodgeNextSpawnIn <= 0) {
+    spawnDodgeBullet();
+    dodgeNextSpawnIn += getDodgeSpawnDelay();
+  }
+
+  dodgeBullets.forEach((bullet) => {
+    bullet.x += bullet.vx * delta;
+    bullet.y += bullet.vy * delta;
+    bullet.life += delta;
+
+    const distance = Math.hypot(bullet.x - dodgePlane.x, bullet.y - dodgePlane.y);
+
+    if (distance < bullet.radius + dodgeSettings.planeRadius * 0.78) {
+      dodgeGameOver = true;
+    } else if (!bullet.grazed && distance < dodgeSettings.grazeRadius) {
+      bullet.grazed = true;
+      dodgeGrazes += 1;
+      dodgeSparks.push({
+        x: bullet.x,
+        y: bullet.y,
+        life: 20,
+        size: 5 + Math.random() * 4,
+      });
+    }
+  });
+
+  dodgeBullets = dodgeBullets.filter(
+    (bullet) =>
+      bullet.x > -70 &&
+      bullet.x < dodgeSettings.width + 70 &&
+      bullet.y > -70 &&
+      bullet.y < dodgeSettings.height + 70 &&
+      bullet.life < 760,
+  );
+
+  dodgeSparks.forEach((spark) => {
+    spark.life -= delta;
+  });
+  dodgeSparks = dodgeSparks.filter((spark) => spark.life > 0);
+  dodgeTimeElement.textContent = formatDodgeTime(dodgeElapsed);
+  dodgeGrazesElement.textContent = String(dodgeGrazes);
+}
+
+function updateDodgePlane(delta) {
+  let inputX = 0;
+  let inputY = 0;
+
+  if (dodgeKeys.has("left")) inputX -= 1;
+  if (dodgeKeys.has("right")) inputX += 1;
+  if (dodgeKeys.has("up")) inputY -= 1;
+  if (dodgeKeys.has("down")) inputY += 1;
+
+  if (inputX !== 0 || inputY !== 0) {
+    const length = Math.hypot(inputX, inputY) || 1;
+    dodgePlane.x += (inputX / length) * dodgeSettings.planeSpeed * delta;
+    dodgePlane.y += (inputY / length) * dodgeSettings.planeSpeed * delta;
+    dodgeTarget = { ...dodgePlane };
+  } else {
+    dodgePlane.x += (dodgeTarget.x - dodgePlane.x) * Math.min(1, 0.16 * delta);
+    dodgePlane.y += (dodgeTarget.y - dodgePlane.y) * Math.min(1, 0.16 * delta);
+  }
+
+  const margin = dodgeSettings.planeRadius + 8;
+  dodgePlane.x = Math.max(margin, Math.min(dodgeSettings.width - margin, dodgePlane.x));
+  dodgePlane.y = Math.max(margin, Math.min(dodgeSettings.height - margin, dodgePlane.y));
+}
+
+function getDodgeSpawnDelay() {
+  const pressure = Math.min(1, dodgeElapsed / 58);
+  return dodgeSettings.baseSpawnMs - (dodgeSettings.baseSpawnMs - dodgeSettings.minSpawnMs) * pressure;
+}
+
+function spawnDodgeBullet() {
+  const side = Math.floor(Math.random() * 4);
+  const margin = 32;
+  let x = 0;
+  let y = 0;
+
+  if (side === 0) {
+    x = Math.random() * dodgeSettings.width;
+    y = -margin;
+  } else if (side === 1) {
+    x = dodgeSettings.width + margin;
+    y = Math.random() * dodgeSettings.height;
+  } else if (side === 2) {
+    x = Math.random() * dodgeSettings.width;
+    y = dodgeSettings.height + margin;
+  } else {
+    x = -margin;
+    y = Math.random() * dodgeSettings.height;
+  }
+
+  const drift = 110 + Math.min(180, dodgeElapsed * 3.2);
+  const targetX = dodgePlane.x + (Math.random() - 0.5) * drift;
+  const targetY = dodgePlane.y + (Math.random() - 0.5) * drift;
+  const angle = Math.atan2(targetY - y, targetX - x);
+  const speed = 2.15 + Math.random() * 1.35 + Math.min(2.25, dodgeElapsed * 0.035);
+
+  dodgeBullets.push({
+    x,
+    y,
+    vx: Math.cos(angle) * speed,
+    vy: Math.sin(angle) * speed,
+    radius: dodgeSettings.bulletRadius + Math.random() * 2.5,
+    life: 0,
+    grazed: false,
+    hue: 18 + Math.random() * 28,
+  });
+
+  if (dodgeElapsed > 18 && Math.random() < 0.2) {
+    const offsetAngle = angle + (Math.random() > 0.5 ? 0.12 : -0.12);
+    dodgeBullets.push({
+      x,
+      y,
+      vx: Math.cos(offsetAngle) * (speed * 0.95),
+      vy: Math.sin(offsetAngle) * (speed * 0.95),
+      radius: dodgeSettings.bulletRadius,
+      life: 0,
+      grazed: false,
+      hue: 42 + Math.random() * 16,
+    });
+  }
+}
+
+function finishDodgeGame() {
+  stopDodgeLoop();
+  dodgeRunning = false;
+  dodgeRestartButton.textContent = "再来一局";
+  dodgeStatusText.textContent = text.dodgeOver;
+
+  if (dodgeElapsed > dodgeBest) {
+    dodgeBest = dodgeElapsed;
+    localStorage.setItem(dodgeBestKey, String(dodgeBest));
+    dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
+    profileDodgeBest.textContent = formatDodgeTime(dodgeBest);
+  }
+
+  settleDodgeGame();
+}
+
+async function settleDodgeGame() {
+  if (!hasAccount() || dodgeSettled) {
+    return;
+  }
+
+  dodgeSettled = true;
+  const seconds = Math.max(0, Math.round(dodgeElapsed * 10) / 10);
+
+  try {
+    const data = await apiRequest("/api/games/dodge/results", {
+      method: "POST",
+      body: JSON.stringify({
+        gameId: dodgeGameId,
+        seconds,
+        grazes: dodgeGrazes,
+        bestTime: dodgeBest,
+      }),
+    });
+
+    renderAccount(data.profile);
+    await refreshLeaderboard(data.leaderboard);
+    dodgeStatusText.textContent = `本局坚持 ${formatDodgeTime(seconds)}，擦弹 ${dodgeGrazes} 次，获得 ${data.award.points} 积分。`;
+  } catch (error) {
+    dodgeStatusText.textContent = error.message;
+    dodgeSettled = false;
+  }
+}
+
+function renderDodge() {
+  const context = dodgeContext;
+  const width = dodgeSettings.width;
+  const height = dodgeSettings.height;
+
+  context.clearRect(0, 0, width, height);
+  const sky = context.createLinearGradient(0, 0, 0, height);
+  sky.addColorStop(0, "#111827");
+  sky.addColorStop(0.55, "#18314f");
+  sky.addColorStop(1, "#0f1f28");
+  context.fillStyle = sky;
+  context.fillRect(0, 0, width, height);
+
+  drawDodgeGrid(context, width, height);
+  drawDodgeBullets(context);
+  drawDodgeSparks(context);
+  drawDodgePlane(context);
+  drawDodgeOverlay(context);
+}
+
+function drawDodgeGrid(context, width, height) {
+  context.save();
+  context.strokeStyle = "rgba(101, 214, 193, 0.12)";
+  context.lineWidth = 1;
+
+  for (let x = 32; x < width; x += 32) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+
+  for (let y = 32; y < height; y += 32) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+    context.stroke();
+  }
+
+  context.restore();
+}
+
+function drawDodgeBullets(context) {
+  dodgeBullets.forEach((bullet) => {
+    const glow = context.createRadialGradient(
+      bullet.x,
+      bullet.y,
+      0,
+      bullet.x,
+      bullet.y,
+      bullet.radius * 3.2,
+    );
+    glow.addColorStop(0, `hsla(${bullet.hue}, 92%, 68%, 0.95)`);
+    glow.addColorStop(0.42, `hsla(${bullet.hue}, 92%, 58%, 0.42)`);
+    glow.addColorStop(1, `hsla(${bullet.hue}, 92%, 58%, 0)`);
+    context.fillStyle = glow;
+    context.beginPath();
+    context.arc(bullet.x, bullet.y, bullet.radius * 3.2, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = "#fff7d6";
+    context.beginPath();
+    context.arc(bullet.x, bullet.y, bullet.radius, 0, Math.PI * 2);
+    context.fill();
+  });
+}
+
+function drawDodgeSparks(context) {
+  dodgeSparks.forEach((spark) => {
+    context.globalAlpha = Math.max(0, spark.life / 20);
+    context.strokeStyle = "#65d6c1";
+    context.lineWidth = 2;
+    context.beginPath();
+    context.arc(spark.x, spark.y, spark.size + (20 - spark.life) * 0.6, 0, Math.PI * 2);
+    context.stroke();
+    context.globalAlpha = 1;
+  });
+}
+
+function drawDodgePlane(context) {
+  const angle =
+    dodgeKeys.has("left") && !dodgeKeys.has("right")
+      ? -0.24
+      : dodgeKeys.has("right") && !dodgeKeys.has("left")
+        ? 0.24
+        : 0;
+
+  context.save();
+  context.translate(dodgePlane.x, dodgePlane.y);
+  context.rotate(angle);
+  context.fillStyle = "rgba(101, 214, 193, 0.16)";
+  context.beginPath();
+  context.arc(0, 0, dodgeSettings.grazeRadius, 0, Math.PI * 2);
+  context.fill();
+  context.fillStyle = "#65d6c1";
+  context.beginPath();
+  context.moveTo(0, -18);
+  context.lineTo(15, 14);
+  context.lineTo(0, 8);
+  context.lineTo(-15, 14);
+  context.closePath();
+  context.fill();
+  context.fillStyle = "#f4c542";
+  context.beginPath();
+  context.moveTo(0, -11);
+  context.lineTo(5, 7);
+  context.lineTo(0, 4);
+  context.lineTo(-5, 7);
+  context.closePath();
+  context.fill();
+  context.restore();
+}
+
+function drawDodgeOverlay(context) {
+  context.fillStyle = "rgba(255, 255, 255, 0.92)";
+  context.font = "900 26px Inter, Arial, sans-serif";
+  context.textAlign = "left";
+  context.fillText(formatDodgeTime(dodgeElapsed), 20, 38);
+  context.font = "800 15px Inter, Arial, sans-serif";
+  context.fillStyle = "rgba(255, 255, 255, 0.72)";
+  context.fillText(`擦弹 ${dodgeGrazes}`, 20, 62);
+
+  if (!dodgeRunning && !dodgeGameOver) {
+    context.textAlign = "center";
+    context.fillStyle = "rgba(255, 255, 255, 0.88)";
+    context.font = "900 24px Inter, Arial, sans-serif";
+    context.fillText("点击开始", dodgeSettings.width / 2, dodgeSettings.height * 0.48);
+    context.font = "800 14px Inter, Arial, sans-serif";
+    context.fillText("鼠标/触屏拖动，或 WASD/方向键移动", dodgeSettings.width / 2, dodgeSettings.height * 0.48 + 30);
+  }
+
+  if (dodgeGameOver) {
+    context.fillStyle = "rgba(17, 24, 39, 0.68)";
+    context.fillRect(162, 174, dodgeSettings.width - 324, 118);
+    context.textAlign = "center";
+    context.fillStyle = "#ffffff";
+    context.font = "900 28px Inter, Arial, sans-serif";
+    context.fillText("被击中了", dodgeSettings.width / 2, 220);
+    context.font = "800 16px Inter, Arial, sans-serif";
+    context.fillText(
+      `坚持 ${formatDodgeTime(dodgeElapsed)} · 擦弹 ${dodgeGrazes}`,
+      dodgeSettings.width / 2,
+      252,
+    );
+  }
+}
+
+function setDodgeTargetFromPointer(event) {
+  const rect = dodgeCanvas.getBoundingClientRect();
+  const scaleX = dodgeSettings.width / rect.width;
+  const scaleY = dodgeSettings.height / rect.height;
+  dodgeTarget = {
+    x: (event.clientX - rect.left) * scaleX,
+    y: (event.clientY - rect.top) * scaleY,
+  };
+}
+
+function handleDodgePointerDown(event) {
+  if (currentGame !== GAME_DODGE) {
+    return;
+  }
+
+  event.preventDefault();
+  dodgeCanvas.setPointerCapture(event.pointerId);
+  setDodgeTargetFromPointer(event);
+  startDodgeGame();
+}
+
+function handleDodgePointerMove(event) {
+  if (currentGame !== GAME_DODGE || event.buttons === 0) {
+    return;
+  }
+
+  event.preventDefault();
+  setDodgeTargetFromPointer(event);
 }
 
 function renderMinesweeperStats() {
@@ -2683,6 +3202,14 @@ flappyRestartButton.addEventListener("click", () => {
 
   startFlappyGame();
 });
+dodgeRestartButton.addEventListener("click", () => {
+  if (dodgeRunning) {
+    resetDodgeGame();
+    return;
+  }
+
+  startDodgeGame();
+});
 duelStartButton.addEventListener("click", requestDuelStart);
 messageButton.addEventListener("click", hideMessageAndContinue);
 messageSecondaryButton.addEventListener("click", settleAndRestart2048);
@@ -2698,6 +3225,14 @@ flappyCanvas.addEventListener("touchstart", (event) => {
   event.preventDefault();
   flap();
 }, { passive: false });
+dodgeCanvas.addEventListener("pointerdown", handleDodgePointerDown);
+dodgeCanvas.addEventListener("pointermove", handleDodgePointerMove);
+dodgeCanvas.addEventListener("pointerup", () => {
+  dodgeTarget = { ...dodgePlane };
+});
+dodgeCanvas.addEventListener("pointercancel", () => {
+  dodgeTarget = { ...dodgePlane };
+});
 duelCanvas.addEventListener("pointerdown", (event) => {
   if (currentGame !== GAME_DUEL) {
     return;
@@ -2757,6 +3292,7 @@ board = createEmptyBoard();
 mineBoard = createMineBoard();
 initializeMinesweeperBoard();
 resetFlappyGame();
+resetDodgeGame();
 renderDuel();
 start2048Game({ notify: false, settlePrevious: false });
 loadSession();

@@ -293,6 +293,65 @@ app.post("/api/games/flappy/results", requireAuth, (request, response) => {
   });
 });
 
+app.post("/api/games/dodge/results", requireAuth, (request, response) => {
+  const gameId = String(request.body?.gameId || "").trim();
+  const seconds = clampNumber(request.body?.seconds, 0, 86400);
+  const grazes = clampInteger(request.body?.grazes, 0, 999999);
+  const bestTime = clampNumber(request.body?.bestTime, 0, 86400);
+  const user = request.user;
+
+  ensureUserShape(user);
+
+  if (!gameId) {
+    response.status(400).json({ ok: false, message: "缺少本局编号" });
+    return;
+  }
+
+  if (user.settledGames.includes(gameId)) {
+    response.json({
+      ok: true,
+      duplicate: true,
+      award: { points: 0, seconds, grazes, bestTime },
+      profile: getPublicProfile(user),
+      leaderboard: getGlobalLeaderboard(),
+    });
+    return;
+  }
+
+  const award = calculateDodgeAward({ seconds, grazes });
+  const gameStats = user.stats.games.dodge;
+
+  user.totalPoints += award.points;
+  user.stats.gamesPlayed += 1;
+  user.stats.lastPlayedAt = Date.now();
+  gameStats.plays += 1;
+  gameStats.totalTime += seconds;
+  gameStats.bestTime = Math.max(gameStats.bestTime, seconds, bestTime);
+  gameStats.bestGrazes = Math.max(gameStats.bestGrazes, grazes);
+  gameStats.lastTime = seconds;
+  gameStats.lastGrazes = grazes;
+  gameStats.lastPlayedAt = Date.now();
+  user.settledGames.push(gameId);
+  user.settledGames = user.settledGames.slice(-200);
+  user.recentResults.unshift({
+    game: "dodge",
+    seconds,
+    grazes,
+    bestTime: gameStats.bestTime,
+    points: award.points,
+    playedAt: Date.now(),
+  });
+  user.recentResults = user.recentResults.slice(0, 12);
+  saveStore();
+
+  response.json({
+    ok: true,
+    award,
+    profile: getPublicProfile(user),
+    leaderboard: getGlobalLeaderboard(),
+  });
+});
+
 function saveStore() {
   persistence.saveStore(store).catch((error) => {
     console.error(`[db] Failed to save user store: ${error.message}`);
@@ -328,6 +387,15 @@ function createDefaultStats() {
         bestScore: 0,
         bestTime: 0,
         lastScore: 0,
+        lastPlayedAt: null,
+      },
+      dodge: {
+        plays: 0,
+        totalTime: 0,
+        bestTime: 0,
+        bestGrazes: 0,
+        lastTime: 0,
+        lastGrazes: 0,
         lastPlayedAt: null,
       },
       paddleduel: {
@@ -370,6 +438,10 @@ function ensureUserShape(user) {
   user.stats.games.flappy = {
     ...createDefaultStats().games.flappy,
     ...(user.stats.games.flappy || {}),
+  };
+  user.stats.games.dodge = {
+    ...createDefaultStats().games.dodge,
+    ...(user.stats.games.dodge || {}),
   };
   user.stats.games.paddleduel = {
     ...createDefaultStats().games.paddleduel,
@@ -481,6 +553,7 @@ function getPublicProfile(user) {
   const game2048 = user.stats.games["2048"];
   const minesweeper3d = user.stats.games.minesweeper3d;
   const flappy = user.stats.games.flappy;
+  const dodge = user.stats.games.dodge;
   const paddleduel = user.stats.games.paddleduel;
 
   return {
@@ -512,6 +585,14 @@ function getPublicProfile(user) {
         bestScore: flappy.bestScore,
         bestTime: flappy.bestTime,
         lastScore: flappy.lastScore,
+      },
+      dodge: {
+        plays: dodge.plays,
+        totalTime: dodge.totalTime,
+        bestTime: dodge.bestTime,
+        bestGrazes: dodge.bestGrazes,
+        lastTime: dodge.lastTime,
+        lastGrazes: dodge.lastGrazes,
       },
       paddleduel: {
         plays: paddleduel.plays,
@@ -585,8 +666,30 @@ function calculateFlappyAward({ score, seconds }) {
   };
 }
 
+function calculateDodgeAward({ seconds, grazes }) {
+  const survivalPoints = Math.floor(seconds * 15);
+  const grazePoints = grazes * 12;
+  const milestoneBonus = Math.floor(seconds / 15) * 90;
+
+  return {
+    points: Math.max(0, survivalPoints + grazePoints + milestoneBonus),
+    seconds,
+    grazes,
+  };
+}
+
 function clampInteger(value, minimum, maximum) {
   const parsed = Number.parseInt(value, 10);
+
+  if (!Number.isFinite(parsed)) {
+    return minimum;
+  }
+
+  return Math.min(maximum, Math.max(minimum, parsed));
+}
+
+function clampNumber(value, minimum, maximum) {
+  const parsed = Number.parseFloat(value);
 
   if (!Number.isFinite(parsed)) {
     return minimum;

@@ -72,6 +72,10 @@
             <span>飞鸟最佳</span>
             <strong id="profile-flappy-best">0</strong>
           </div>
+          <div>
+            <span>灵敏最佳</span>
+            <strong id="profile-dodge-best">0.0s</strong>
+          </div>
           <button id="logout-button" class="ghost-button" type="button">退出</button>
         </div>
       </section>
@@ -82,7 +86,7 @@
             <p class="eyebrow">小游戏</p>
             <h2>游戏列表</h2>
           </div>
-          <span id="catalog-count">4 个可玩</span>
+          <span id="catalog-count">5 个可玩</span>
         </div>
 
         <div class="game-catalog">
@@ -100,6 +104,11 @@
             <span class="game-badge">可玩</span>
             <h3>Flappy 飞鸟</h3>
             <p>反应挑战 · 随机管道 · 分数竞速</p>
+          </button>
+          <button class="game-card" type="button" data-game="dodge">
+            <span class="game-badge">可玩</span>
+            <h3>灵敏闪避</h3>
+            <p>操控飞机 · 随机弹幕 · 生存计时</p>
           </button>
           <button class="game-card" type="button" data-game="paddleduel">
             <span class="game-badge">对战</span>
@@ -272,6 +281,45 @@
               width="420"
               height="560"
               aria-label="Flappy 飞鸟游戏画面"
+            ></canvas>
+          </div>
+        </section>
+
+        <section class="game-panel game-view is-hidden" id="game-dodge" aria-label="灵敏闪避">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">Dodge</p>
+              <h2>灵敏闪避</h2>
+            </div>
+
+            <div class="score-panel" aria-label="灵敏闪避状态">
+              <div class="score-box">
+                <span>时间</span>
+                <strong id="dodge-time">0.0s</strong>
+              </div>
+              <div class="score-box">
+                <span>擦弹</span>
+                <strong id="dodge-grazes">0</strong>
+              </div>
+              <div class="score-box">
+                <span>最佳</span>
+                <strong id="dodge-best">0.0s</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="dodge-status-text">点击画面或按空格开始，移动飞机躲避随机子弹。</p>
+            <button id="dodge-restart-button" type="button">开始</button>
+          </div>
+
+          <div class="dodge-stage-wrap">
+            <canvas
+              id="dodge-canvas"
+              class="dodge-canvas"
+              width="640"
+              height="480"
+              aria-label="灵敏闪避游戏画面"
             ></canvas>
           </div>
         </section>
