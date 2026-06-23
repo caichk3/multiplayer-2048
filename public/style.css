@@ -778,7 +778,11 @@ h2 {
   transform:
     rotateX(var(--mine-model-x, -28deg))
     rotateY(var(--mine-model-y, 36deg))
-    scale(var(--mine-model-scale, 1));
+    scale3d(
+      var(--mine-model-scale, 1),
+      var(--mine-model-scale, 1),
+      var(--mine-model-scale, 1)
+    );
   transition: transform 80ms linear;
   will-change: transform;
 }
