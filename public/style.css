@@ -1055,120 +1055,6 @@ h2 {
   width: 100%;
 }
 
-.mine-reference-shell {
-  width: 100%;
-}
-
-.mine-reference-stage {
-  position: relative;
-  min-height: 256px;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(24, 33, 42, 0.08);
-  border-radius: 8px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.2)),
-    linear-gradient(135deg, rgba(24, 124, 104, 0.08), rgba(44, 111, 187, 0.08)),
-    #eef3f1;
-  box-shadow: 0 10px 22px rgba(24, 33, 42, 0.1);
-  perspective: 760px;
-  touch-action: none;
-  user-select: none;
-  pointer-events: none;
-}
-
-.mine-reference-stage::before {
-  content: "3D 参考图";
-  position: absolute;
-  left: 12px;
-  top: 10px;
-  z-index: 2;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0;
-}
-
-.mine-reference-stage::after {
-  content: "";
-  position: absolute;
-  left: 16%;
-  right: 16%;
-  bottom: 30px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(24, 33, 42, 0.08);
-  filter: blur(10px);
-  transform: rotateX(68deg);
-}
-
-.mine-reference-space {
-  position: relative;
-  z-index: 1;
-  width: 1px;
-  height: 1px;
-  transform-style: preserve-3d;
-  transform: rotateX(-30deg) rotateY(40deg) rotateZ(-1deg);
-}
-
-.mine-reference-cube {
-  opacity: 1;
-  filter: saturate(0.96);
-  transition: none;
-}
-
-.mine-reference-cube .cube-face {
-  border-color: rgba(24, 33, 42, 0.2);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.03)),
-    hsla(var(--cube-hue, 176), 42%, 58%, 0.3);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
-    inset 0 0 12px rgba(255, 255, 255, 0.06);
-}
-
-.mine-reference-cube.has-number .cube-face {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.1)),
-    rgba(255, 255, 255, 0.58);
-}
-
-.mine-reference-cube.has-flag .cube-face {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06)),
-    rgba(230, 160, 68, 0.54);
-}
-
-.mine-reference-cube.has-mine-mark .cube-face {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06)),
-    rgba(228, 123, 133, 0.56);
-}
-
-.mine-reference-cube.has-flag .cube-face::before,
-.mine-reference-cube.has-flag .cube-face::after,
-.mine-reference-cube.has-mine-mark .cube-face::before,
-.mine-reference-cube.has-mine-mark .cube-face::after,
-.mine-reference-cube .cube-face::after {
-  opacity: 1;
-}
-
-.mine-reference-cube.has-flag {
-  filter: saturate(1.08);
-}
-
-.mine-reference-cube.has-mine-mark {
-  filter: saturate(1.02);
-}
-
-.mine-reference-cube.is-open {
-  filter: saturate(0.98);
-}
-
 .mine-layer-shell {
   position: relative;
   z-index: 1;
@@ -1373,11 +1259,6 @@ h2 {
 
   .mine-mobile-shell {
     gap: 10px;
-  }
-
-  .mine-reference-stage {
-    min-height: 236px;
-    perspective: 640px;
   }
 
   .mine-model-stage.is-expanded {

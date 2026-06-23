@@ -388,11 +388,6 @@ function setupMinesweeperMarkup() {
     const shell = document.createElement("div");
     shell.className = "mine-mobile-shell";
     shell.innerHTML = `
-      <div class="mine-reference-shell">
-        <div id="mine-reference-stage" class="mine-reference-stage" aria-hidden="true">
-          <div id="mine-reference-space" class="mine-reference-space"></div>
-        </div>
-      </div>
       <div class="mine-layer-shell">
         <div class="mine-layer-tabs" id="mine-layer-tabs" aria-label="扫雷层数"></div>
         <div class="mine-layer-board" id="mine-layer-board" aria-label="当前层扫雷棋盘"></div>
@@ -2253,20 +2248,6 @@ function getMineCubeSize(config) {
   return Math.max(minSize, Math.min(maxSize, Math.floor((stageWidth - padding) / gridWidth)));
 }
 
-function getMineReferenceCubeSize(config) {
-  const referenceStage = mineModelStage.querySelector("#mine-reference-stage");
-  const stageWidth =
-    referenceStage?.getBoundingClientRect().width ||
-    mineModelStage.getBoundingClientRect().width ||
-    Math.min(window.innerWidth - 48, 620);
-  const footprint = Math.max(config.rows, config.cols, Math.ceil(config.layers * 1.1));
-  const minSize = 10;
-  const maxSize = 16;
-  const padding = 64;
-
-  return Math.max(minSize, Math.min(maxSize, Math.floor((stageWidth - padding) / footprint)));
-}
-
 function getMineCubePosition(layer, row, column, config, cubeSize) {
   const gap = Math.max(2, Math.round(cubeSize * 0.08));
   const step = cubeSize + gap;
@@ -2279,20 +2260,6 @@ function getMineCubePosition(layer, row, column, config, cubeSize) {
   return {
     x: (column - columnMiddle) * step,
     y: (layerMiddle - layer) * (step + layerGap),
-    z: (row - rowMiddle) * step,
-  };
-}
-
-function getMineReferenceCubePosition(layer, row, column, config, cubeSize) {
-  const gap = Math.max(0.5, cubeSize * 0.025);
-  const step = cubeSize + gap;
-  const layerMiddle = (config.layers - 1) / 2;
-  const rowMiddle = (config.rows - 1) / 2;
-  const columnMiddle = (config.cols - 1) / 2;
-
-  return {
-    x: (column - columnMiddle) * step,
-    y: (layerMiddle - layer) * step,
     z: (row - rowMiddle) * step,
   };
 }
@@ -2346,10 +2313,7 @@ function createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, o
 function updateMineCube(cube, layer, row, column, cell, config, cubeSize, options = {}) {
   const revealAllMines = mineGameOver && !mineGameWon;
   const mark = getMineCellMark(cell, revealAllMines);
-  const position =
-    options.referenceLayout === true
-      ? getMineReferenceCubePosition(layer, row, column, config, cubeSize)
-      : getMineCubePosition(layer, row, column, config, cubeSize);
+  const position = getMineCubePosition(layer, row, column, config, cubeSize);
   let ariaLabel = `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`;
 
   cube.className = options.baseClass || "mine-cube";
@@ -2590,6 +2554,11 @@ function initializeMinesweeperBoard() {
     mineBoard[position.layer][position.row][position.column].mine = true;
   }
 
+  recalculateMineAdjacency(config);
+  renderMinesweeperBoard();
+}
+
+function recalculateMineAdjacency(config = getMineDifficulty()) {
   for (let layer = 0; layer < config.layers; layer += 1) {
     for (let row = 0; row < config.rows; row += 1) {
       for (let column = 0; column < config.cols; column += 1) {
@@ -2601,8 +2570,6 @@ function initializeMinesweeperBoard() {
       }
     }
   }
-
-  renderMinesweeperBoard();
 }
 
 function generateMineShape(config, targetSize) {
@@ -2693,6 +2660,39 @@ function countMineNeighbors(layer, row, column) {
   return count;
 }
 
+function protectFirstMineClick(layer, row, column) {
+  const firstCell = getMineCell(layer, row, column);
+
+  if (mineStartedAt || !firstCell?.active || !firstCell.mine) {
+    return;
+  }
+
+  const candidates = [];
+
+  mineBoard.forEach((mineLayer, layerIndex) => {
+    mineLayer.forEach((mineRow, rowIndex) => {
+      mineRow.forEach((cell, columnIndex) => {
+        if (
+          cell.active &&
+          !cell.mine &&
+          (layerIndex !== layer || rowIndex !== row || columnIndex !== column)
+        ) {
+          candidates.push({ layer: layerIndex, row: rowIndex, column: columnIndex, cell });
+        }
+      });
+    });
+  });
+
+  if (candidates.length === 0) {
+    return;
+  }
+
+  const replacement = candidates[Math.floor(Math.random() * candidates.length)];
+  firstCell.mine = false;
+  replacement.cell.mine = true;
+  recalculateMineAdjacency();
+}
+
 function isMineInBounds(layer, row, column, config = getMineDifficulty()) {
   return (
     layer >= 0 &&
@@ -2724,7 +2724,6 @@ function renderMinesweeperBoard() {
   mineModelStage.classList.toggle("is-layer-mode", mineLightMode);
 
   if (mineLightMode) {
-    renderMineReferenceBoard(config);
     renderMinesweeperLayerBoard(config);
     renderMineExpandButton();
     renderMinesweeperStats();
@@ -2792,65 +2791,6 @@ function renderMinesweeperBoard() {
       ? text.minesWin
       : text.minesLose
     : getMineReadyText();
-}
-
-function renderMineReferenceBoard(config) {
-  const referenceStage = mineModelStage.querySelector("#mine-reference-stage");
-  const referenceSpace = mineModelStage.querySelector("#mine-reference-space");
-
-  if (!referenceStage || !referenceSpace) {
-    return;
-  }
-
-  const cubeSize = getMineReferenceCubeSize(config);
-  const existingCubes = new Map(
-    Array.from(referenceSpace.querySelectorAll(".mine-reference-cube")).map((cube) => [
-      cube.dataset.key,
-      cube,
-    ]),
-  );
-  const activeKeys = new Set();
-  const fragment = document.createDocumentFragment();
-
-  referenceSpace.style.setProperty("--cube-size", `${cubeSize}px`);
-  referenceSpace.style.setProperty("--cube-half", `${cubeSize / 2}px`);
-
-  for (let layer = 0; layer < config.layers; layer += 1) {
-    for (let row = 0; row < config.rows; row += 1) {
-      for (let column = 0; column < config.cols; column += 1) {
-        const cell = getMineCell(layer, row, column);
-
-        if (!cell?.active) {
-          continue;
-        }
-
-        const key = mineCellKey(layer, row, column);
-        const cube =
-          existingCubes.get(key) ||
-          createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, {
-            baseClass: "mine-cube mine-reference-cube",
-            interactive: false,
-            referenceLayout: true,
-          });
-
-        activeKeys.add(key);
-        updateMineCube(cube, layer, row, column, cell, config, cubeSize, {
-          baseClass: "mine-cube mine-reference-cube",
-          interactive: false,
-          referenceLayout: true,
-        });
-        fragment.appendChild(cube);
-      }
-    }
-  }
-
-  existingCubes.forEach((cube, key) => {
-    if (!activeKeys.has(key)) {
-      cube.remove();
-    }
-  });
-
-  referenceSpace.appendChild(fragment);
 }
 
 function toggleMineFlag(layer, row, column) {
@@ -2949,6 +2889,8 @@ function openMineCell(layer, row, column) {
     return;
   }
 
+  protectFirstMineClick(layer, row, column);
+
   if (!mineStartedAt) {
     startMineTimer();
   }
@@ -3017,7 +2959,6 @@ function getMineActionButton(target) {
 
   if (
     !button ||
-    button.classList.contains("mine-reference-cube") ||
     button.classList.contains("mine-neighbor-cell")
   ) {
     return null;
