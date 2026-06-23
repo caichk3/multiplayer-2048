@@ -265,9 +265,9 @@ function setupBoardMarkup() {
 }
 
 function setupMinesweeperMarkup() {
-  mineModelStage.querySelector(".mine-layer-shell")?.remove();
+  mineModelStage.querySelector(".mine-mobile-shell")?.remove();
   mineModelSpace.innerHTML = "";
-  mineModelSpace.dataset.renderMode = mineLightMode ? "layers" : "full";
+  mineModelSpace.dataset.renderMode = mineLightMode ? "mobile" : "desktop";
   applyMineModelRotation();
   renderMineExpandButton();
   mineModelStage.classList.toggle("is-light-mode", mineLightMode);
@@ -275,10 +275,17 @@ function setupMinesweeperMarkup() {
 
   if (mineLightMode) {
     const shell = document.createElement("div");
-    shell.className = "mine-layer-shell";
+    shell.className = "mine-mobile-shell";
     shell.innerHTML = `
-      <div class="mine-layer-tabs" id="mine-layer-tabs" aria-label="扫雷层数"></div>
-      <div class="mine-layer-board" id="mine-layer-board" aria-label="当前层扫雷棋盘"></div>
+      <div class="mine-reference-shell">
+        <div id="mine-reference-stage" class="mine-reference-stage" aria-hidden="true">
+          <div id="mine-reference-space" class="mine-reference-space"></div>
+        </div>
+      </div>
+      <div class="mine-layer-shell">
+        <div class="mine-layer-tabs" id="mine-layer-tabs" aria-label="扫雷层数"></div>
+        <div class="mine-layer-board" id="mine-layer-board" aria-label="当前层扫雷棋盘"></div>
+      </div>
     `;
     mineModelStage.appendChild(shell);
   }
@@ -1626,6 +1633,20 @@ function getMineCubeSize(config) {
   return Math.max(minSize, Math.min(maxSize, Math.floor((stageWidth - padding) / gridWidth)));
 }
 
+function getMineReferenceCubeSize(config) {
+  const referenceStage = mineModelStage.querySelector("#mine-reference-stage");
+  const stageWidth =
+    referenceStage?.getBoundingClientRect().width ||
+    mineModelStage.getBoundingClientRect().width ||
+    Math.min(window.innerWidth - 48, 620);
+  const footprint = Math.max(config.rows, config.cols, Math.ceil(config.layers * 1.1));
+  const minSize = 10;
+  const maxSize = 16;
+  const padding = 64;
+
+  return Math.max(minSize, Math.min(maxSize, Math.floor((stageWidth - padding) / footprint)));
+}
+
 function getMineCubePosition(layer, row, column, config, cubeSize) {
   const gap = Math.max(2, Math.round(cubeSize * 0.08));
   const step = cubeSize + gap;
@@ -1663,11 +1684,19 @@ function getMineCellMark(cell, revealAllMines) {
 }
 
 function createMineCube(layer, row, column, cell, config, cubeSize) {
+  return createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, {});
+}
+
+function createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, options = {}) {
   const cube = document.createElement("button");
-  const faceNames = mineLightMode ? ["front", "right", "top"] : ["front", "back", "right", "left", "top", "bottom"];
+  const faceNames =
+    options.faceNames ||
+    (mineLightMode ? ["front", "right", "top"] : ["front", "back", "right", "left", "top", "bottom"]);
 
   cube.type = "button";
-  cube.className = "mine-cube";
+  cube.className = options.baseClass || "mine-cube";
+  cube.tabIndex = options.interactive === false ? -1 : 0;
+  cube.setAttribute("aria-hidden", options.interactive === false ? "true" : "false");
 
   faceNames.forEach((faceName) => {
     const face = document.createElement("span");
@@ -1675,18 +1704,18 @@ function createMineCube(layer, row, column, cell, config, cubeSize) {
     cube.appendChild(face);
   });
 
-  updateMineCube(cube, layer, row, column, cell, config, cubeSize);
+  updateMineCube(cube, layer, row, column, cell, config, cubeSize, options);
 
   return cube;
 }
 
-function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
+function updateMineCube(cube, layer, row, column, cell, config, cubeSize, options = {}) {
   const revealAllMines = mineGameOver && !mineGameWon;
   const mark = getMineCellMark(cell, revealAllMines);
   const position = getMineCubePosition(layer, row, column, config, cubeSize);
   let ariaLabel = `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`;
 
-  cube.className = "mine-cube";
+  cube.className = options.baseClass || "mine-cube";
   cube.dataset.layer = String(layer);
   cube.dataset.row = String(row);
   cube.dataset.column = String(column);
@@ -1702,6 +1731,7 @@ function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
   cube.classList.toggle("has-number", mark.type === "number");
   cube.classList.toggle("has-flag", mark.type === "flag");
   cube.classList.toggle("has-mine-mark", mark.type === "mine");
+  cube.classList.toggle("is-open", Boolean(cell.open));
 
   if (cell.open) {
     cube.classList.add("is-open");
@@ -1724,6 +1754,13 @@ function updateMineCube(cube, layer, row, column, cell, config, cubeSize) {
   if (revealAllMines && cell.mine && !cell.open) {
     cube.classList.add("is-mine");
     ariaLabel = `${ariaLabel}，未翻开的雷`;
+  }
+
+  if (options.interactive === false) {
+    cube.tabIndex = -1;
+    cube.setAttribute("aria-hidden", "true");
+    cube.removeAttribute("aria-label");
+    return;
   }
 
   cube.setAttribute("aria-label", ariaLabel);
@@ -1983,7 +2020,7 @@ function getMineCell(layer, row, column) {
 
 function renderMinesweeperBoard() {
   const config = getMineDifficulty();
-  const renderMode = mineLightMode ? "layers" : "full";
+  const renderMode = mineLightMode ? "mobile" : "desktop";
 
   if (mineModelSpace.dataset.renderMode !== renderMode) {
     setupMinesweeperMarkup();
@@ -1993,6 +2030,7 @@ function renderMinesweeperBoard() {
   mineModelStage.classList.toggle("is-layer-mode", mineLightMode);
 
   if (mineLightMode) {
+    renderMineReferenceBoard(config);
     renderMinesweeperLayerBoard(config);
     renderMineExpandButton();
     renderMinesweeperStats();
@@ -2060,6 +2098,64 @@ function renderMinesweeperBoard() {
       ? text.minesWin
       : text.minesLose
     : getMineReadyText();
+}
+
+function renderMineReferenceBoard(config) {
+  const referenceStage = mineModelStage.querySelector("#mine-reference-stage");
+  const referenceSpace = mineModelStage.querySelector("#mine-reference-space");
+
+  if (!referenceStage || !referenceSpace) {
+    return;
+  }
+
+  const cubeSize = getMineReferenceCubeSize(config);
+  const existingCubes = new Map(
+    Array.from(referenceSpace.querySelectorAll(".mine-reference-cube")).map((cube) => [
+      cube.dataset.key,
+      cube,
+    ]),
+  );
+  const activeKeys = new Set();
+  const fragment = document.createDocumentFragment();
+
+  referenceSpace.style.setProperty("--cube-size", `${cubeSize}px`);
+  referenceSpace.style.setProperty("--cube-half", `${cubeSize / 2}px`);
+
+  for (let layer = 0; layer < config.layers; layer += 1) {
+    for (let row = 0; row < config.rows; row += 1) {
+      for (let column = 0; column < config.cols; column += 1) {
+        const cell = getMineCell(layer, row, column);
+
+        if (!cell?.active) {
+          continue;
+        }
+
+        const key = mineCellKey(layer, row, column);
+        const cube =
+          existingCubes.get(key) ||
+          createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, {
+            baseClass: "mine-cube mine-reference-cube",
+            interactive: false,
+            faceNames: ["front", "right", "top"],
+          });
+
+        activeKeys.add(key);
+        updateMineCube(cube, layer, row, column, cell, config, cubeSize, {
+          baseClass: "mine-cube mine-reference-cube",
+          interactive: false,
+        });
+        fragment.appendChild(cube);
+      }
+    }
+  }
+
+  existingCubes.forEach((cube, key) => {
+    if (!activeKeys.has(key)) {
+      cube.remove();
+    }
+  });
+
+  referenceSpace.appendChild(fragment);
 }
 
 function toggleMineFlag(layer, row, column) {
@@ -2222,7 +2318,13 @@ async function settleMinesweeperGame(reason) {
 }
 
 function getMineActionButton(target) {
-  return target.closest(".mine-cube, .mine-layer-cell");
+  const button = target.closest(".mine-layer-cell, .mine-cube");
+
+  if (!button || button.classList.contains("mine-reference-cube")) {
+    return null;
+  }
+
+  return button;
 }
 
 function getMineButtonPosition(button) {
