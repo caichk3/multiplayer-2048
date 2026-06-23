@@ -1663,6 +1663,20 @@ function getMineCubePosition(layer, row, column, config, cubeSize) {
   };
 }
 
+function getMineReferenceCubePosition(layer, row, column, config, cubeSize) {
+  const gap = Math.max(0.5, cubeSize * 0.025);
+  const step = cubeSize + gap;
+  const layerMiddle = (config.layers - 1) / 2;
+  const rowMiddle = (config.rows - 1) / 2;
+  const columnMiddle = (config.cols - 1) / 2;
+
+  return {
+    x: (column - columnMiddle) * step,
+    y: (layerMiddle - layer) * step,
+    z: (row - rowMiddle) * step,
+  };
+}
+
 function getMineCellMark(cell, revealAllMines) {
   if (cell.open && cell.mine) {
     return { type: "mine", text: "" };
@@ -1691,7 +1705,7 @@ function createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, o
   const cube = document.createElement("button");
   const faceNames =
     options.faceNames ||
-    (mineLightMode ? ["front", "right", "top"] : ["front", "back", "right", "left", "top", "bottom"]);
+    ["front", "back", "right", "left", "top", "bottom"];
 
   cube.type = "button";
   cube.className = options.baseClass || "mine-cube";
@@ -1712,7 +1726,10 @@ function createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, o
 function updateMineCube(cube, layer, row, column, cell, config, cubeSize, options = {}) {
   const revealAllMines = mineGameOver && !mineGameWon;
   const mark = getMineCellMark(cell, revealAllMines);
-  const position = getMineCubePosition(layer, row, column, config, cubeSize);
+  const position =
+    options.referenceLayout === true
+      ? getMineReferenceCubePosition(layer, row, column, config, cubeSize)
+      : getMineCubePosition(layer, row, column, config, cubeSize);
   let ariaLabel = `第 ${layer + 1} 层 第 ${row + 1} 行 第 ${column + 1} 列`;
 
   cube.className = options.baseClass || "mine-cube";
@@ -2136,13 +2153,14 @@ function renderMineReferenceBoard(config) {
           createMineCubeWithOptions(layer, row, column, cell, config, cubeSize, {
             baseClass: "mine-cube mine-reference-cube",
             interactive: false,
-            faceNames: ["front", "right", "top"],
+            referenceLayout: true,
           });
 
         activeKeys.add(key);
         updateMineCube(cube, layer, row, column, cell, config, cubeSize, {
           baseClass: "mine-cube mine-reference-cube",
           interactive: false,
+          referenceLayout: true,
         });
         fragment.appendChild(cube);
       }
