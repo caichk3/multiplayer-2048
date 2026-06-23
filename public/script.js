@@ -181,6 +181,7 @@ let mineTouchLongPressed = false;
 let mineIgnoreClickUntil = 0;
 let mineModelRotationX = -28;
 let mineModelRotationY = 36;
+let mineModelScale = 1;
 let mineModelDragging = false;
 let mineModelDragX = 0;
 let mineModelDragY = 0;
@@ -1613,6 +1614,7 @@ function renderMinesweeperStats() {
 function applyMineModelRotation() {
   mineModelSpace.style.setProperty("--mine-model-x", `${mineModelRotationX}deg`);
   mineModelSpace.style.setProperty("--mine-model-y", `${mineModelRotationY}deg`);
+  mineModelSpace.style.setProperty("--mine-model-scale", String(mineModelScale));
 }
 
 function scheduleMineModelRotation() {
@@ -2565,6 +2567,19 @@ function handleMineModelPointerMove(event) {
   moveMineModelDrag(event.clientX, event.clientY);
 }
 
+function handleMineModelWheel(event) {
+  if (mineLightMode || currentGame !== GAME_MINESWEEPER) {
+    return;
+  }
+
+  event.preventDefault();
+
+  const direction = event.deltaY > 0 ? -1 : 1;
+  const step = event.ctrlKey ? 0.08 : 0.12;
+  mineModelScale = Math.max(0.62, Math.min(1.85, mineModelScale + direction * step));
+  applyMineModelRotation();
+}
+
 function toggleMineModelExpanded() {
   if (mineLightMode) {
     const config = getMineDifficulty();
@@ -2717,6 +2732,7 @@ roomCodeInput.addEventListener("input", () => {
 mineModelStage.addEventListener("click", handleMineClick);
 mineModelStage.addEventListener("contextmenu", handleMineContextMenu);
 mineModelStage.addEventListener("mousedown", handleMineModelPointerDown);
+mineModelStage.addEventListener("wheel", handleMineModelWheel, { passive: false });
 document.addEventListener("mousemove", handleMineModelPointerMove);
 document.addEventListener("mouseup", endMineModelDrag);
 mineModelStage.addEventListener("touchstart", handleMineTouchStart, { passive: true });
