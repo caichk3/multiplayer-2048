@@ -23,11 +23,21 @@ const DUEL_PADDLE_HEIGHT = 92;
 const DUEL_PADDLE_SPEED = 430;
 const DUEL_PADDLE_X = 42;
 const DUEL_BALL_RADIUS = 11;
+const LEADERBOARD_ENTRY_MIN_POINTS = 1;
+const UNUSED_ACCOUNT_TTL_MS = 3 * 60 * 60 * 1000;
+const UNUSED_ACCOUNT_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+const ZERO_POINT_ACCOUNT_SESSION_GRACE_MS = 30 * 60 * 1000;
 
 app.use(express.json({ limit: "32kb" }));
 app.use(express.static(publicPath));
 
 let store = createEmptyStore();
+let lastUnusedAccountCleanupAt = 0;
+
+app.use((_request, _response, next) => {
+  cleanupUnusedAccounts();
+  next();
+});
 
 app.get("/health", (_request, response) => {
   response.json({ ok: true, storage: persistence.getStorageMode() });
@@ -88,6 +98,7 @@ app.post("/api/auth/logout", requireAuth, (request, response) => {
   const token = getTokenFromRequest(request);
   store.sessions = store.sessions.filter((session) => session.token !== token);
   saveStore();
+  cleanupUnusedAccounts({ force: true });
   response.json({ ok: true });
 });
 
@@ -358,6 +369,55 @@ function saveStore() {
   });
 }
 
+function cleanupUnusedAccounts(options = {}) {
+  const now = Date.now();
+
+  if (!options.force && now - lastUnusedAccountCleanupAt < UNUSED_ACCOUNT_CLEANUP_INTERVAL_MS) {
+    return 0;
+  }
+
+  lastUnusedAccountCleanupAt = now;
+  const beforeCount = store.users.length;
+  const removedIds = new Set();
+
+  store.users = store.users.filter((user) => {
+    ensureUserShape(user);
+    const totalPoints = Number(user.totalPoints) || 0;
+    const createdAt = Number(user.createdAt) || now;
+    const hasPlayed = Number(user.stats.gamesPlayed) > 0 || user.recentResults.length > 0;
+    const hasRecentSession = hasRecentSessionForUser(user.id, now);
+    const shouldRemoveZeroPoint = totalPoints <= 0 && !hasRecentSession;
+    const shouldRemoveUnused = !hasPlayed && now - createdAt >= UNUSED_ACCOUNT_TTL_MS;
+    const shouldRemove = shouldRemoveZeroPoint || shouldRemoveUnused;
+
+    if (shouldRemove) {
+      removedIds.add(user.id);
+    }
+
+    return !shouldRemove;
+  });
+
+  if (removedIds.size === 0) {
+    return 0;
+  }
+
+  store.sessions = store.sessions.filter((session) => !removedIds.has(session.userId));
+  saveStore();
+  console.log(`[cleanup] Removed ${beforeCount - store.users.length} unused account(s).`);
+  return removedIds.size;
+}
+
+function hasRecentSessionForUser(userId, now = Date.now()) {
+  return store.sessions.some((session) => {
+    if (session.userId !== userId) {
+      return false;
+    }
+
+    const seenAt = Number(session.lastSeenAt || session.createdAt || 0);
+    return seenAt > 0 && now - seenAt < ZERO_POINT_ACCOUNT_SESSION_GRACE_MS;
+  });
+}
+
 function createDefaultStats() {
   return {
     gamesPlayed: 0,
@@ -610,6 +670,7 @@ function getPublicProfile(user) {
 function getGlobalLeaderboard() {
   return store.users
     .map((user) => getPublicProfile(user))
+    .filter((player) => player.totalPoints > LEADERBOARD_ENTRY_MIN_POINTS)
     .sort((first, second) => {
       if (second.totalPoints !== first.totalPoints) {
         return second.totalPoints - first.totalPoints;
@@ -1336,6 +1397,7 @@ async function bootstrap() {
   try {
     store = await persistence.loadStore();
     store.users.forEach((user) => ensureUserShape(user));
+    cleanupUnusedAccounts({ force: true });
     server.listen(PORT, "0.0.0.0", () => {
       console.log(
         `Arcade server is running on port ${PORT} with ${persistence.getStorageMode()} storage`,
