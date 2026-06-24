@@ -373,33 +373,63 @@
           </div>
         </section>
 
-        <aside class="leaderboard-panel" aria-label="排行榜">
-          <div class="leaderboard-block">
-            <div class="leaderboard-head">
-              <div>
-                <p class="eyebrow">房间</p>
-                <h2>实时排行</h2>
+        <aside class="leaderboard-panel is-collapsed" id="sidebar-panel" aria-label="公告和排行榜">
+          <button
+            id="sidebar-toggle"
+            class="sidebar-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="sidebar-content"
+          >
+            公告 / 排行榜
+          </button>
+
+          <div id="sidebar-content" class="sidebar-content">
+            <div class="announcement-block">
+              <div class="leaderboard-head">
+                <div>
+                  <p class="eyebrow">公告</p>
+                  <h2>公告栏</h2>
+                </div>
               </div>
-              <span id="player-count">0 人</span>
+
+              <ol class="announcements-list">
+                <li class="announcement-item">
+                  注册后 3 小时内未进行任何游戏的账号会自动删档，请注册后尽快完成一局游戏。
+                </li>
+                <li class="announcement-item">
+                  手机端排行榜默认折叠，点上方按钮可以展开或收起。
+                </li>
+              </ol>
             </div>
 
-            <ol id="players-list" class="players-list">
-              <li class="empty-state">还没有进入房间</li>
-            </ol>
-          </div>
-
-          <div class="leaderboard-block">
-            <div class="leaderboard-head">
-              <div>
-                <p class="eyebrow">平台</p>
-                <h2>总积分榜</h2>
+            <div class="leaderboard-block">
+              <div class="leaderboard-head">
+                <div>
+                  <p class="eyebrow">房间</p>
+                  <h2>实时排行</h2>
+                </div>
+                <span id="player-count">0 人</span>
               </div>
-              <span id="global-count">0 人</span>
+
+              <ol id="players-list" class="players-list">
+                <li class="empty-state">还没有进入房间</li>
+              </ol>
             </div>
 
-            <ol id="global-list" class="players-list">
-              <li class="empty-state">暂无积分</li>
-            </ol>
+            <div class="leaderboard-block">
+              <div class="leaderboard-head">
+                <div>
+                  <p class="eyebrow">平台</p>
+                  <h2>总积分榜</h2>
+                </div>
+                <span id="global-count">0 人</span>
+              </div>
+
+              <ol id="global-list" class="players-list">
+                <li class="empty-state">暂无积分</li>
+              </ol>
+            </div>
           </div>
         </aside>
       </section>

@@ -403,6 +403,40 @@ h2 {
   padding: 18px;
 }
 
+.sidebar-toggle {
+  display: none;
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border: 1px solid rgba(24, 124, 104, 0.22);
+  background: rgba(24, 124, 104, 0.1);
+  color: var(--accent-dark);
+  box-shadow: none;
+}
+
+.announcement-block {
+  margin-bottom: 22px;
+}
+
+.announcements-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.announcement-item {
+  padding: 10px 12px;
+  border: 1px solid rgba(214, 134, 49, 0.28);
+  border-radius: 8px;
+  background: rgba(214, 134, 49, 0.1);
+  color: var(--ink);
+  font-size: 0.9rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .game-topbar,
 .leaderboard-head {
   display: flex;
@@ -667,6 +701,11 @@ h2 {
 
 .leaderboard-block + .leaderboard-block {
   margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.announcement-block + .leaderboard-block {
   padding-top: 18px;
   border-top: 1px solid var(--line);
 }
@@ -1040,6 +1079,7 @@ h2 {
   overflow: hidden;
   cursor: default;
   perspective: none;
+  touch-action: pan-y;
 }
 
 .mine-model-stage.is-layer-mode::after,
@@ -1053,6 +1093,7 @@ h2 {
   display: grid;
   gap: 12px;
   width: 100%;
+  touch-action: pan-y;
 }
 
 .mine-layer-shell {
@@ -1061,6 +1102,7 @@ h2 {
   display: grid;
   gap: 12px;
   width: 100%;
+  touch-action: pan-y;
 }
 
 .mine-layer-tabs {
@@ -1454,10 +1496,6 @@ h2 {
     grid-template-columns: 1fr;
   }
 
-  .leaderboard-panel {
-    order: -1;
-  }
-
   .account-panel,
   .account-form,
   .profile-strip {
@@ -1492,6 +1530,26 @@ h2 {
 
   .game-catalog {
     grid-template-columns: 1fr;
+  }
+
+  .leaderboard-panel {
+    padding: 10px;
+  }
+
+  .sidebar-toggle {
+    display: block;
+  }
+
+  .leaderboard-panel.is-collapsed .sidebar-content {
+    display: none;
+  }
+
+  .leaderboard-panel:not(.is-collapsed) .sidebar-toggle {
+    margin-bottom: 12px;
+  }
+
+  .announcement-block {
+    margin-bottom: 16px;
   }
 
   .room-actions {

@@ -19,6 +19,8 @@ const playersList = document.querySelector("#players-list");
 const playerCount = document.querySelector("#player-count");
 const globalList = document.querySelector("#global-list");
 const globalCount = document.querySelector("#global-count");
+const sidebarPanel = document.querySelector("#sidebar-panel");
+const sidebarToggle = document.querySelector("#sidebar-toggle");
 const connectionStatus = document.querySelector("#connection-status");
 const accountForm = document.querySelector("#account-form");
 const accountNameInput = document.querySelector("#account-name");
@@ -1254,6 +1256,12 @@ function renderGlobalLeaderboard(players) {
     item.append(rank, info, scoreBox);
     globalList.appendChild(item);
   });
+}
+
+function toggleSidebarPanel() {
+  const collapsed = !sidebarPanel.classList.contains("is-collapsed");
+  sidebarPanel.classList.toggle("is-collapsed", collapsed);
+  sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
 }
 
 function formatDuelTime(seconds) {
@@ -3271,6 +3279,7 @@ logoutButton.addEventListener("click", logoutAccount);
 createRoomButton.addEventListener("click", createRoom);
 joinRoomButton.addEventListener("click", joinRoom);
 copyRoomButton.addEventListener("click", copyRoomCode);
+sidebarToggle.addEventListener("click", toggleSidebarPanel);
 restartButton.addEventListener("click", () => start2048Game());
 mineRestartButton.addEventListener("click", () => startMinesweeperGame());
 mineExpandButton.addEventListener("click", toggleMineModelExpanded);
