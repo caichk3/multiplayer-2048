@@ -15,6 +15,9 @@ const activeRoom = document.querySelector("#active-room");
 const activeRoomCode = document.querySelector("#active-room-code");
 const copyRoomButton = document.querySelector("#copy-room-button");
 const roomGameLabel = document.querySelector("#room-game-label");
+const appShell = document.querySelector("#app-shell");
+const loginView = document.querySelector("#login-view");
+const appView = document.querySelector("#app-view");
 const playersList = document.querySelector("#players-list");
 const playerCount = document.querySelector("#player-count");
 const globalList = document.querySelector("#global-list");
@@ -205,7 +208,7 @@ const dodgeDifficulties = {
 };
 const text = {
   ready: "已经进入房间，开始挑战吧。本局结束或重新开始时会结算平台积分。",
-  waiting: "先登录账号，再创建或加入房间。",
+  waiting: "滑动方块合成 2048，本局结束或重开时会结算积分。",
   wonTitle: "你合成了 2048",
   wonCopy: "还能继续冲更高分，排行榜会实时更新。",
   wonStatus: "已经合成 2048，可以继续玩。",
@@ -408,6 +411,13 @@ function hasAccount() {
   return Boolean(token && profile);
 }
 
+function renderAuthView() {
+  const loggedIn = hasAccount();
+  appShell.classList.toggle("is-auth-required", !loggedIn);
+  loginView.hidden = loggedIn;
+  appView.hidden = !loggedIn;
+}
+
 function setConnectionStatus(label, mode) {
   connectionStatus.textContent = label;
   connectionStatus.classList.toggle("is-online", mode === "online");
@@ -448,6 +458,10 @@ async function loadSession() {
     return;
   }
 
+  loginView.hidden = true;
+  appView.hidden = false;
+  appShell.classList.remove("is-auth-required");
+
   try {
     const data = await apiRequest("/api/me");
     renderAccount(data.profile);
@@ -463,14 +477,14 @@ function renderAccount(nextProfile) {
 
   if (!profile) {
     accountTitle.textContent = "登录后累计积分";
-    accountStatus.textContent = "昵称加口令即可进入。";
+    accountStatus.textContent = "昵称加密码即可进入。";
     profileStrip.hidden = true;
-    accountForm.hidden = false;
     createRoomButton.disabled = true;
     joinRoomButton.disabled = true;
     profileMinesweeperWins.textContent = "0";
     profileFlappyBest.textContent = "0";
     profileDodgeBest.textContent = "0.0s";
+    renderAuthView();
     updateRoomActions();
     return;
   }
@@ -478,7 +492,6 @@ function renderAccount(nextProfile) {
   localStorage.setItem(nameKey, profile.name);
   accountNameInput.value = profile.name;
   accountTitle.textContent = `欢迎，${profile.name}`;
-  accountStatus.textContent = "账号已登录，小游戏成绩都会结算为平台积分。";
   profileName.textContent = profile.name;
   profileLevel.textContent = String(profile.level);
   profilePoints.textContent = String(profile.totalPoints);
@@ -493,9 +506,9 @@ function renderAccount(nextProfile) {
   profileDodgeBest.textContent = formatDodgeTime(dodgeBest);
   dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
   profileStrip.hidden = false;
-  accountForm.hidden = true;
   createRoomButton.disabled = false;
   joinRoomButton.disabled = false;
+  renderAuthView();
   updateRoomActions();
 }
 
@@ -505,9 +518,9 @@ function updateRoomActions() {
   const showFlappy = currentGame === GAME_FLAPPY;
   const showDodge = currentGame === GAME_DODGE;
   const showDuel = currentGame === GAME_DUEL;
-  const showRoom = show2048 || showDuel;
+  const showRoom = showDuel;
   roomPanel.hidden = !showRoom;
-  roomGameLabel.textContent = showDuel ? "挡板弹球对战" : "2048 联机竞速";
+  roomGameLabel.textContent = "挡板弹球对战";
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
@@ -519,7 +532,7 @@ function updateRoomActions() {
   });
 
   if (show2048) {
-    statusText.textContent = currentRoomCode ? text.ready : hasAccount() ? "可以创建房间，或输入房间号加入同学。" : text.waiting;
+    statusText.textContent = text.waiting;
   } else if (showMinesweeper) {
     mineStatusText.textContent = mineGameOver
       ? mineGameWon
@@ -571,7 +584,7 @@ async function submitAuth(path) {
   const pin = accountPinInput.value.trim();
 
   if (!name || pin.length < 4) {
-    accountStatus.textContent = "昵称要填写，口令至少 4 位。";
+    accountStatus.textContent = "昵称要填写，密码至少 4 位。";
     return;
   }
 
@@ -659,7 +672,7 @@ function start2048Game(options = {}) {
   current2048GameId = createGameId();
   current2048Settled = false;
   message.classList.add("is-hidden");
-  statusText.textContent = currentRoomCode ? text.ready : hasAccount() ? "可以创建房间，或输入房间号加入同学。" : text.waiting;
+  statusText.textContent = text.waiting;
   add2048RandomTile();
   add2048RandomTile();
   render2048Board();

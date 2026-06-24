@@ -7,7 +7,41 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="app-shell" aria-label="同学小游戏厅">
+    <main class="app-shell is-auth-required" id="app-shell" aria-label="同学小游戏厅">
+      <section class="login-view" id="login-view" aria-label="登录">
+        <div class="login-card">
+          <div class="account-intro">
+            <p class="eyebrow">Class Arcade</p>
+            <h1>同学小游戏厅</h1>
+            <p id="account-status">昵称加密码即可进入。</p>
+          </div>
+
+          <form class="account-form" id="account-form">
+            <div class="field">
+              <label for="account-name">昵称</label>
+              <input id="account-name" maxlength="14" autocomplete="username" placeholder="例如 小明" />
+            </div>
+
+            <div class="field">
+              <label for="account-pin">密码</label>
+              <input
+                id="account-pin"
+                type="password"
+                maxlength="20"
+                autocomplete="current-password"
+                placeholder="至少 4 位"
+              />
+            </div>
+
+            <div class="account-actions">
+              <button id="login-button" type="submit">登录</button>
+              <button id="register-button" class="secondary-button" type="button">注册</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <div class="app-view" id="app-view" hidden>
       <section class="hero">
         <div>
           <p class="eyebrow">Class Arcade</p>
@@ -108,31 +142,7 @@
         <div class="account-intro">
           <p class="eyebrow">账号</p>
           <h2 id="account-title">登录后累计积分</h2>
-          <p id="account-status">昵称加口令即可进入。</p>
         </div>
-
-        <form class="account-form" id="account-form">
-          <div class="field">
-            <label for="account-name">昵称</label>
-            <input id="account-name" maxlength="14" autocomplete="username" placeholder="例如 小明" />
-          </div>
-
-          <div class="field">
-            <label for="account-pin">口令</label>
-            <input
-              id="account-pin"
-              type="password"
-              maxlength="20"
-              autocomplete="current-password"
-              placeholder="至少 4 位"
-            />
-          </div>
-
-          <div class="account-actions">
-            <button id="login-button" type="submit">登录</button>
-            <button id="register-button" class="secondary-button" type="button">注册</button>
-          </div>
-        </form>
 
         <div class="profile-strip" id="profile-strip" hidden>
           <div>
@@ -179,8 +189,8 @@
         <div class="game-catalog">
           <button class="game-card is-active" type="button" data-game="2048">
             <span class="game-badge">可玩</span>
-            <h3>2048 联机竞速</h3>
-            <p>房间对战 · 实时排行 · 平台积分</p>
+            <h3>2048 经典挑战</h3>
+            <p>滑动合成 · 2048 提示 · 平台积分</p>
           </button>
           <button class="game-card" type="button" data-game="minesweeper3d">
             <span class="game-badge">可玩</span>
@@ -205,10 +215,10 @@
         </div>
       </section>
 
-      <section class="room-panel" id="room-panel" aria-label="2048 房间">
+      <section class="room-panel" id="room-panel" aria-label="挡板弹球房间">
         <div class="field game-label">
           <label>当前游戏</label>
-          <strong id="room-game-label">2048 联机竞速</strong>
+          <strong id="room-game-label">挡板弹球对战</strong>
         </div>
 
         <div class="field room-code-field">
@@ -468,6 +478,7 @@
         </section>
 
       </section>
+      </div>
     </main>
 
     <script src="/socket.io/socket.io.js"></script>
