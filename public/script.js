@@ -518,9 +518,9 @@ function updateRoomActions() {
   const showFlappy = currentGame === GAME_FLAPPY;
   const showDodge = currentGame === GAME_DODGE;
   const showDuel = currentGame === GAME_DUEL;
-  const showRoom = showDuel;
+  const showRoom = show2048 || showDuel;
   roomPanel.hidden = !showRoom;
-  roomGameLabel.textContent = "挡板弹球对战";
+  roomGameLabel.textContent = showDuel ? "挡板弹球对战" : "2048 联机竞速";
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
