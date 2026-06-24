@@ -26,7 +26,7 @@
             aria-expanded="false"
             aria-controls="announcement-content"
           >
-            打开公告栏
+            公告栏
           </button>
 
           <div id="announcement-content" class="panel-content">
@@ -35,6 +35,9 @@
                 <p class="eyebrow">公告</p>
                 <h2>公告栏</h2>
               </div>
+              <button class="panel-close" type="button" data-panel-close="announcement" aria-label="关闭公告栏">
+                ×
+              </button>
             </div>
 
             <ol class="announcements-list">
@@ -56,10 +59,20 @@
             aria-expanded="false"
             aria-controls="leaderboard-content"
           >
-            打开排行榜
+            排行榜
           </button>
 
           <div id="leaderboard-content" class="panel-content">
+            <div class="panel-floating-head">
+              <div>
+                <p class="eyebrow">排行</p>
+                <h2>排行榜</h2>
+              </div>
+              <button class="panel-close" type="button" data-panel-close="leaderboard" aria-label="关闭排行榜">
+                ×
+              </button>
+            </div>
+
             <div class="leaderboard-block">
               <div class="leaderboard-head">
                 <div>

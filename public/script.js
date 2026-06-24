@@ -23,6 +23,7 @@ const announcementPanel = document.querySelector("#announcement-panel");
 const announcementToggle = document.querySelector("#announcement-toggle");
 const leaderboardPanel = document.querySelector("#leaderboard-panel");
 const leaderboardToggle = document.querySelector("#leaderboard-toggle");
+const panelCloseButtons = Array.from(document.querySelectorAll("[data-panel-close]"));
 const connectionStatus = document.querySelector("#connection-status");
 const accountForm = document.querySelector("#account-form");
 const accountNameInput = document.querySelector("#account-name");
@@ -927,6 +928,11 @@ function getDirectionFromKey(key) {
 }
 
 function handleKeyDown(event) {
+  if (event.key === "Escape") {
+    closeInfoPanels();
+    return;
+  }
+
   if (currentGame === GAME_DUEL) {
     const direction = getDuelDirection(event.key);
 
@@ -1262,10 +1268,34 @@ function renderGlobalLeaderboard(players) {
 }
 
 function toggleInfoPanel(panel, toggle) {
-  const collapsed = !panel.classList.contains("is-collapsed");
-  panel.classList.toggle("is-collapsed", collapsed);
-  toggle.setAttribute("aria-expanded", String(!collapsed));
-  toggle.textContent = `${collapsed ? "打开" : "收起"}${panel === announcementPanel ? "公告栏" : "排行榜"}`;
+  const willOpen = panel.classList.contains("is-collapsed");
+  closeInfoPanels();
+
+  if (willOpen) {
+    panel.classList.remove("is-collapsed");
+    toggle.setAttribute("aria-expanded", "true");
+  }
+}
+
+function closeInfoPanels() {
+  [
+    [announcementPanel, announcementToggle],
+    [leaderboardPanel, leaderboardToggle],
+  ].forEach(([panel, toggle]) => {
+    panel.classList.add("is-collapsed");
+    toggle.setAttribute("aria-expanded", "false");
+  });
+}
+
+function closeInfoPanelFromButton(button) {
+  if (button.dataset.panelClose === "announcement") {
+    announcementPanel.classList.add("is-collapsed");
+    announcementToggle.setAttribute("aria-expanded", "false");
+    return;
+  }
+
+  leaderboardPanel.classList.add("is-collapsed");
+  leaderboardToggle.setAttribute("aria-expanded", "false");
 }
 
 function formatDuelTime(seconds) {
@@ -3304,6 +3334,19 @@ joinRoomButton.addEventListener("click", joinRoom);
 copyRoomButton.addEventListener("click", copyRoomCode);
 announcementToggle.addEventListener("click", () => toggleInfoPanel(announcementPanel, announcementToggle));
 leaderboardToggle.addEventListener("click", () => toggleInfoPanel(leaderboardPanel, leaderboardToggle));
+announcementPanel.addEventListener("click", (event) => {
+  if (event.target === announcementPanel) {
+    closeInfoPanels();
+  }
+});
+leaderboardPanel.addEventListener("click", (event) => {
+  if (event.target === leaderboardPanel) {
+    closeInfoPanels();
+  }
+});
+panelCloseButtons.forEach((button) => {
+  button.addEventListener("click", () => closeInfoPanelFromButton(button));
+});
 restartButton.addEventListener("click", () => start2048Game());
 mineRestartButton.addEventListener("click", () => startMinesweeperGame());
 mineExpandButton.addEventListener("click", toggleMineModelExpanded);
