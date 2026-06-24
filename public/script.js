@@ -19,8 +19,10 @@ const playersList = document.querySelector("#players-list");
 const playerCount = document.querySelector("#player-count");
 const globalList = document.querySelector("#global-list");
 const globalCount = document.querySelector("#global-count");
-const sidebarPanel = document.querySelector("#sidebar-panel");
-const sidebarToggle = document.querySelector("#sidebar-toggle");
+const announcementPanel = document.querySelector("#announcement-panel");
+const announcementToggle = document.querySelector("#announcement-toggle");
+const leaderboardPanel = document.querySelector("#leaderboard-panel");
+const leaderboardToggle = document.querySelector("#leaderboard-toggle");
 const connectionStatus = document.querySelector("#connection-status");
 const accountForm = document.querySelector("#account-form");
 const accountNameInput = document.querySelector("#account-name");
@@ -70,6 +72,7 @@ const dodgeDifficultySelect = document.querySelector("#dodge-difficulty");
 const dodgeTimeElement = document.querySelector("#dodge-time");
 const dodgeGrazesElement = document.querySelector("#dodge-grazes");
 const dodgeBestElement = document.querySelector("#dodge-best");
+const dodgeMoveButtons = Array.from(document.querySelectorAll("[data-dodge-move]"));
 const duelCanvas = document.querySelector("#duel-canvas");
 const duelContext = duelCanvas.getContext("2d");
 const duelScoreElement = document.querySelector("#duel-score");
@@ -1258,10 +1261,10 @@ function renderGlobalLeaderboard(players) {
   });
 }
 
-function toggleSidebarPanel() {
-  const collapsed = !sidebarPanel.classList.contains("is-collapsed");
-  sidebarPanel.classList.toggle("is-collapsed", collapsed);
-  sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+function toggleInfoPanel(panel, toggle) {
+  const collapsed = !panel.classList.contains("is-collapsed");
+  panel.classList.toggle("is-collapsed", collapsed);
+  toggle.setAttribute("aria-expanded", String(!collapsed));
 }
 
 function formatDuelTime(seconds) {
@@ -2191,17 +2194,36 @@ function handleDodgePointerDown(event) {
 
   event.preventDefault();
   dodgeCanvas.setPointerCapture(event.pointerId);
-  setDodgeTargetFromPointer(event);
+  if (event.pointerType !== "touch") {
+    setDodgeTargetFromPointer(event);
+  }
   startDodgeGame();
 }
 
 function handleDodgePointerMove(event) {
-  if (currentGame !== GAME_DODGE || event.buttons === 0) {
+  if (currentGame !== GAME_DODGE || event.buttons === 0 || event.pointerType === "touch") {
     return;
   }
 
   event.preventDefault();
   setDodgeTargetFromPointer(event);
+}
+
+function setDodgeMoveButton(button, pressed) {
+  const direction = button.dataset.dodgeMove;
+
+  if (!direction) {
+    return;
+  }
+
+  button.classList.toggle("is-pressed", pressed);
+
+  if (pressed) {
+    dodgeKeys.add(direction);
+    startDodgeGame();
+  } else {
+    dodgeKeys.delete(direction);
+  }
 }
 
 function renderMinesweeperStats() {
@@ -3279,7 +3301,8 @@ logoutButton.addEventListener("click", logoutAccount);
 createRoomButton.addEventListener("click", createRoom);
 joinRoomButton.addEventListener("click", joinRoom);
 copyRoomButton.addEventListener("click", copyRoomCode);
-sidebarToggle.addEventListener("click", toggleSidebarPanel);
+announcementToggle.addEventListener("click", () => toggleInfoPanel(announcementPanel, announcementToggle));
+leaderboardToggle.addEventListener("click", () => toggleInfoPanel(leaderboardPanel, leaderboardToggle));
 restartButton.addEventListener("click", () => start2048Game());
 mineRestartButton.addEventListener("click", () => startMinesweeperGame());
 mineExpandButton.addEventListener("click", toggleMineModelExpanded);
@@ -3327,6 +3350,16 @@ dodgeCanvas.addEventListener("pointerup", () => {
 });
 dodgeCanvas.addEventListener("pointercancel", () => {
   dodgeTarget = { ...dodgePlane };
+});
+dodgeMoveButtons.forEach((button) => {
+  button.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    button.setPointerCapture(event.pointerId);
+    setDodgeMoveButton(button, true);
+  });
+  button.addEventListener("pointerup", () => setDodgeMoveButton(button, false));
+  button.addEventListener("pointerleave", () => setDodgeMoveButton(button, false));
+  button.addEventListener("pointercancel", () => setDodgeMoveButton(button, false));
 });
 duelCanvas.addEventListener("pointerdown", (event) => {
   if (currentGame !== GAME_DUEL) {

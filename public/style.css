@@ -130,6 +130,7 @@ h2 {
 .account-panel,
 .catalog-panel,
 .game-panel,
+.info-panel,
 .leaderboard-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -391,19 +392,28 @@ h2 {
   letter-spacing: 0;
 }
 
+.top-info-row {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.35fr);
+  align-items: start;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
 .game-layout {
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) minmax(280px, 360px);
+  grid-template-columns: 1fr;
   align-items: start;
   gap: 18px;
 }
 
 .game-panel,
+.info-panel,
 .leaderboard-panel {
   padding: 18px;
 }
 
-.sidebar-toggle {
+.panel-toggle {
   display: none;
   width: 100%;
   min-height: 42px;
@@ -701,11 +711,6 @@ h2 {
 
 .leaderboard-block + .leaderboard-block {
   margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--line);
-}
-
-.announcement-block + .leaderboard-block {
   padding-top: 18px;
   border-top: 1px solid var(--line);
 }
@@ -1347,6 +1352,53 @@ h2 {
   padding: 6px 0;
 }
 
+.dodge-touch-controls {
+  display: none;
+  width: min(100%, 270px);
+  grid-template-columns: repeat(3, minmax(68px, 1fr));
+  grid-template-areas:
+    ". up ."
+    "left down right";
+  gap: 10px;
+  margin: 14px auto 0;
+  touch-action: none;
+  user-select: none;
+}
+
+.dodge-touch-controls button {
+  min-height: 58px;
+  border: 1px solid rgba(44, 111, 187, 0.2);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--blue);
+  font-size: 1.45rem;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(44, 111, 187, 0.13);
+  touch-action: none;
+}
+
+.dodge-touch-controls button.is-pressed {
+  background: rgba(44, 111, 187, 0.12);
+  border-color: rgba(44, 111, 187, 0.34);
+  transform: translateY(1px);
+}
+
+.dodge-touch-up {
+  grid-area: up;
+}
+
+.dodge-touch-left {
+  grid-area: left;
+}
+
+.dodge-touch-down {
+  grid-area: down;
+}
+
+.dodge-touch-right {
+  grid-area: right;
+}
+
 .flappy-canvas {
   display: block;
   width: min(100%, 420px);
@@ -1492,6 +1544,10 @@ h2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .top-info-row {
+    grid-template-columns: 1fr;
+  }
+
   .game-layout {
     grid-template-columns: 1fr;
   }
@@ -1532,24 +1588,25 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .info-panel,
   .leaderboard-panel {
     padding: 10px;
   }
 
-  .sidebar-toggle {
+  .panel-toggle {
     display: block;
   }
 
-  .leaderboard-panel.is-collapsed .sidebar-content {
+  .info-panel.is-collapsed .panel-content {
     display: none;
   }
 
-  .leaderboard-panel:not(.is-collapsed) .sidebar-toggle {
+  .info-panel:not(.is-collapsed) .panel-toggle {
     margin-bottom: 12px;
   }
 
-  .announcement-block {
-    margin-bottom: 16px;
+  .top-info-row {
+    gap: 12px;
   }
 
   .room-actions {
@@ -1598,6 +1655,10 @@ h2 {
   .dodge-canvas {
     width: 100%;
     box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
+  }
+
+  .dodge-touch-controls {
+    display: grid;
   }
 
   .duel-canvas {
