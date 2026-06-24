@@ -2270,6 +2270,10 @@ function setDodgeMoveButton(button, pressed) {
   }
 }
 
+function preventDodgeButtonSelection(event) {
+  event.preventDefault();
+}
+
 function renderMinesweeperStats() {
   const config = getMineDifficulty();
   mineRemainingElement.textContent = String(Math.max(0, mineCount - mineFlags));
@@ -3409,6 +3413,9 @@ dodgeCanvas.addEventListener("pointercancel", () => {
   dodgeTarget = { ...dodgePlane };
 });
 dodgeMoveButtons.forEach((button) => {
+  button.addEventListener("contextmenu", preventDodgeButtonSelection);
+  button.addEventListener("selectstart", preventDodgeButtonSelection);
+  button.addEventListener("touchstart", preventDodgeButtonSelection, { passive: false });
   button.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     button.setPointerCapture(event.pointerId);
