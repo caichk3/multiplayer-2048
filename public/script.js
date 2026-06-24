@@ -1265,6 +1265,7 @@ function toggleInfoPanel(panel, toggle) {
   const collapsed = !panel.classList.contains("is-collapsed");
   panel.classList.toggle("is-collapsed", collapsed);
   toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.textContent = `${collapsed ? "打开" : "收起"}${panel === announcementPanel ? "公告栏" : "排行榜"}`;
 }
 
 function formatDuelTime(seconds) {

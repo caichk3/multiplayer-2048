@@ -230,13 +230,113 @@ h2 {
 }
 
 .game-card {
+  position: relative;
   display: block;
   min-height: 116px;
-  padding: 14px;
+  overflow: hidden;
+  padding: 14px 58px 14px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
   text-align: left;
+}
+
+.game-card::before,
+.game-card::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.game-card::before {
+  top: 13px;
+  right: 13px;
+  width: 38px;
+  height: 38px;
+  border: 1px solid rgba(24, 33, 42, 0.1);
+  border-radius: 8px;
+  background: #f7faf8;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.68);
+}
+
+.game-card::after {
+  top: 21px;
+  right: 21px;
+  width: 22px;
+  height: 22px;
+}
+
+.game-card[data-game="2048"]::after {
+  border-radius: 5px;
+  background:
+    linear-gradient(90deg, transparent 45%, #ffffff 45% 55%, transparent 55%),
+    linear-gradient(0deg, transparent 45%, #ffffff 45% 55%, transparent 55%),
+    linear-gradient(135deg, #8f6a3f, #d9a441);
+  box-shadow: 0 0 0 1px rgba(143, 106, 63, 0.2);
+}
+
+.game-card[data-game="minesweeper3d"]::after {
+  width: 24px;
+  height: 10px;
+  top: 27px;
+  right: 20px;
+  border-radius: 999px 55% 55% 999px;
+  background: linear-gradient(90deg, #283846 0 70%, #e0664f 70% 100%);
+  box-shadow:
+    -6px 0 0 -3px #283846,
+    6px 0 0 -3px #e0664f;
+  transform: rotate(-25deg);
+}
+
+.game-card[data-game="minesweeper3d"]::before {
+  background: rgba(44, 111, 187, 0.08);
+}
+
+.game-card[data-game="flappy"]::after {
+  width: 24px;
+  height: 16px;
+  top: 24px;
+  right: 19px;
+  border-radius: 70% 45% 65% 45%;
+  background:
+    radial-gradient(circle at 73% 33%, #18212a 0 2px, transparent 2.4px),
+    linear-gradient(135deg, #f4c542 0 58%, #f39b30 58%);
+  transform: rotate(-8deg);
+}
+
+.game-card[data-game="flappy"]::before {
+  background: rgba(214, 134, 49, 0.1);
+}
+
+.game-card[data-game="dodge"]::after {
+  width: 0;
+  height: 0;
+  top: 19px;
+  right: 25px;
+  border-right: 11px solid transparent;
+  border-bottom: 28px solid #187c68;
+  border-left: 11px solid transparent;
+  transform: rotate(45deg);
+  filter: drop-shadow(0 2px 0 rgba(24, 33, 42, 0.1));
+}
+
+.game-card[data-game="dodge"]::before {
+  background: rgba(24, 124, 104, 0.08);
+}
+
+.game-card[data-game="paddleduel"]::after {
+  top: 20px;
+  right: 20px;
+  width: 24px;
+  height: 24px;
+  border-right: 4px solid #2c6fbb;
+  border-left: 4px solid #d68631;
+  background:
+    radial-gradient(circle at 50% 50%, #18212a 0 4px, transparent 4.5px);
+}
+
+.game-card[data-game="paddleduel"]::before {
+  background: rgba(44, 111, 187, 0.08);
 }
 
 .game-card.is-active,
@@ -414,7 +514,10 @@ h2 {
 }
 
 .panel-toggle {
-  display: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   width: 100%;
   min-height: 42px;
   padding: 0 14px;
@@ -422,6 +525,25 @@ h2 {
   background: rgba(24, 124, 104, 0.1);
   color: var(--accent-dark);
   box-shadow: none;
+}
+
+.panel-toggle::after {
+  content: "展开";
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.info-panel:not(.is-collapsed) .panel-toggle {
+  margin-bottom: 12px;
+}
+
+.info-panel:not(.is-collapsed) .panel-toggle::after {
+  content: "收起";
+}
+
+.info-panel.is-collapsed .panel-content {
+  display: none;
 }
 
 .announcement-block {
@@ -1591,18 +1713,6 @@ h2 {
   .info-panel,
   .leaderboard-panel {
     padding: 10px;
-  }
-
-  .panel-toggle {
-    display: block;
-  }
-
-  .info-panel.is-collapsed .panel-content {
-    display: none;
-  }
-
-  .info-panel:not(.is-collapsed) .panel-toggle {
-    margin-bottom: 12px;
   }
 
   .top-info-row {
