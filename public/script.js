@@ -83,6 +83,7 @@ const duelScoreElement = document.querySelector("#duel-score");
 const duelTimeElement = document.querySelector("#duel-time");
 const duelStatusText = document.querySelector("#duel-status-text");
 const duelStartButton = document.querySelector("#duel-start-button");
+const duelServeButton = document.querySelector("#duel-serve-button");
 const duelMoveButtons = Array.from(document.querySelectorAll("[data-duel-move]"));
 
 const socket = io();
@@ -306,6 +307,7 @@ let dodgeSettled = false;
 let duelState = null;
 let duelSide = "";
 let duelInputDirection = 0;
+let duelRenderFrameId = null;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
@@ -1337,6 +1339,10 @@ function getDuelSide(state = duelState) {
 function updateDuelStatus() {
   duelSide = getDuelSide();
   const playerCount = [duelState?.players?.left, duelState?.players?.right].filter(Boolean).length;
+  const isServer = duelSide && duelState?.waitingForServe && duelState?.servingSide === duelSide;
+
+  duelServeButton.hidden = !duelState?.active || !duelState?.waitingForServe;
+  duelServeButton.disabled = !isServer;
 
   if (!currentRoomCode) {
     duelStatusText.textContent = hasAccount()
@@ -1353,9 +1359,16 @@ function updateDuelStatus() {
   }
 
   if (duelState?.active) {
-    duelStatusText.textContent = duelSide
-      ? `你在${duelSide === "left" ? "左侧" : "右侧"}，用 W/S 或上下方向键移动。`
-      : "你正在观战这局对战。";
+    if (duelState.waitingForServe) {
+      const serverName = duelState.players?.[duelState.servingSide]?.name || "一方";
+      duelStatusText.textContent = isServer
+        ? "轮到你开球，调整挡板位置后点击开球。"
+        : `等待 ${serverName} 开球。`;
+    } else {
+      duelStatusText.textContent = duelSide
+        ? `你在${duelSide === "left" ? "左侧" : "右侧"}，用 W/S 或上下方向键移动。`
+        : "你正在观战这局对战。";
+    }
     duelStartButton.disabled = true;
     return;
   }
@@ -1399,14 +1412,42 @@ function requestDuelStart() {
   });
 }
 
+function requestDuelServe() {
+  if (!currentRoomCode) {
+    duelStatusText.textContent = "先创建或加入一个房间。";
+    return;
+  }
+
+  socket.emit("duel:serve", {}, (response) => {
+    if (!response?.ok) {
+      duelStatusText.textContent = response?.message || "暂时不能开球。";
+    }
+  });
+}
+
+function scheduleDuelRender() {
+  if (duelRenderFrameId) {
+    return;
+  }
+
+  duelRenderFrameId = window.requestAnimationFrame(() => {
+    duelRenderFrameId = null;
+    renderDuel();
+  });
+}
+
 function renderDuel() {
   const context = duelContext;
   const width = duelCanvas.width;
   const height = duelCanvas.height;
   const state = duelState || {};
+  const stateWidth = state.width || width;
+  const stateHeight = state.height || height;
   const score = state.score || { left: 0, right: 0 };
   const paddles = state.paddles || { left: 0.5, right: 0.5 };
-  const ball = state.ball || { x: width / 2, y: height / 2 };
+  const ball = state.ball || { x: stateWidth / 2, y: stateHeight / 2 };
+  const scaleX = width / stateWidth;
+  const scaleY = height / stateHeight;
 
   duelScoreElement.textContent = `${score.left || 0} : ${score.right || 0}`;
   duelTimeElement.textContent = formatDuelTime(state.timeLeft ?? 180);
@@ -1431,16 +1472,25 @@ function renderDuel() {
 
   drawDuelGoal(context, 18, height);
   drawDuelGoal(context, width - 18, height);
-  drawDuelPaddle(context, 42, paddles.left * height, "#f4c542");
-  drawDuelPaddle(context, width - 42, paddles.right * height, "#65d6c1");
-  drawDuelBall(context, ball.x, ball.y);
+  drawDuelPaddle(context, 42 * scaleX, paddles.left * height, "#f4c542");
+  drawDuelPaddle(context, width - 42 * scaleX, paddles.right * height, "#65d6c1");
+  drawDuelBall(context, ball.x * scaleX, ball.y * scaleY);
 
   context.fillStyle = "rgba(255, 255, 255, 0.9)";
   context.font = "900 44px Inter, Arial, sans-serif";
   context.textAlign = "center";
   context.fillText(`${score.left || 0}  :  ${score.right || 0}`, width / 2, 72);
 
-  if (!state.active) {
+  if (state.active && state.waitingForServe) {
+    context.fillStyle = "rgba(8, 18, 28, 0.42)";
+    context.fillRect(190, 182, width - 380, 112);
+    context.fillStyle = "#ffffff";
+    context.font = "900 26px Inter, Arial, sans-serif";
+    context.fillText("等待开球", width / 2, 226);
+    context.font = "800 15px Inter, Arial, sans-serif";
+    const serverName = state.players?.[state.servingSide]?.name || "发球方";
+    context.fillText(`${serverName} 点击开球后继续`, width / 2, 256);
+  } else if (!state.active) {
     context.fillStyle = "rgba(8, 18, 28, 0.54)";
     context.fillRect(170, 176, width - 340, 128);
     context.fillStyle = "#ffffff";
@@ -1461,7 +1511,7 @@ function drawDuelGoal(context, x, height) {
 }
 
 function drawDuelPaddle(context, x, centerY, color) {
-  const paddleHeight = 92;
+  const paddleHeight = 112;
   context.fillStyle = color;
   context.fillRect(x - 8, centerY - paddleHeight / 2, 16, paddleHeight);
   context.fillStyle = "rgba(255, 255, 255, 0.28)";
@@ -3314,21 +3364,21 @@ socket.on("room:update", (room) => {
   duelState = room.duel || duelState;
   duelSide = getDuelSide();
   renderPlayers(room);
-  renderDuel();
+  scheduleDuelRender();
   updateDuelStatus();
 });
 
 socket.on("duel:update", (state) => {
   duelState = state;
   duelSide = getDuelSide();
-  renderDuel();
+  scheduleDuelRender();
   updateDuelStatus();
 });
 
 socket.on("duel:ended", async (payload = {}) => {
   duelState = payload.state || duelState;
   duelSide = getDuelSide();
-  renderDuel();
+  scheduleDuelRender();
   updateDuelStatus();
 
   try {
@@ -3390,6 +3440,7 @@ dodgeRestartButton.addEventListener("click", () => {
   startDodgeGame();
 });
 duelStartButton.addEventListener("click", requestDuelStart);
+duelServeButton.addEventListener("click", requestDuelServe);
 messageButton.addEventListener("click", hideMessageAndContinue);
 messageSecondaryButton.addEventListener("click", settleAndRestart2048);
 gameCards.forEach((card) => {
@@ -3445,6 +3496,9 @@ duelCanvas.addEventListener("pointercancel", () => setDuelInput(0));
 duelMoveButtons.forEach((button) => {
   const direction = button.dataset.duelMove === "up" ? -1 : 1;
 
+  button.addEventListener("contextmenu", preventDodgeButtonSelection);
+  button.addEventListener("selectstart", preventDodgeButtonSelection);
+  button.addEventListener("touchstart", preventDodgeButtonSelection, { passive: false });
   button.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     setDuelInput(direction);

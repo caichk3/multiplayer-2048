@@ -19,10 +19,12 @@ const duelLoops = new Map();
 const DUEL_WIDTH = 800;
 const DUEL_HEIGHT = 480;
 const DUEL_DURATION_MS = 180000;
-const DUEL_PADDLE_HEIGHT = 92;
-const DUEL_PADDLE_SPEED = 430;
+const DUEL_PADDLE_HEIGHT = 112;
+const DUEL_PADDLE_SPEED = 420;
 const DUEL_PADDLE_X = 42;
 const DUEL_BALL_RADIUS = 11;
+const DUEL_TICK_INTERVAL_MS = 1000 / 24;
+const DUEL_BROADCAST_INTERVAL_MS = 1000 / 18;
 const LEADERBOARD_ENTRY_MIN_POINTS = 1;
 const UNUSED_ACCOUNT_TTL_MS = 3 * 60 * 60 * 1000;
 const UNUSED_ACCOUNT_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
@@ -816,9 +818,12 @@ function createDuelState() {
     ball: {
       x: DUEL_WIDTH / 2,
       y: DUEL_HEIGHT / 2,
-      vx: 330,
-      vy: 120,
+      vx: 0,
+      vy: 0,
     },
+    servingSide: "",
+    waitingForServe: false,
+    lastBroadcastAt: 0,
     score: {
       left: 0,
       right: 0,
@@ -971,29 +976,86 @@ function getPublicDuelState(room) {
     ball: duel.ball,
     score: duel.score,
     winner: duel.winner,
+    servingSide: duel.servingSide,
+    waitingForServe: duel.waitingForServe,
   };
 }
 
-function sendDuelUpdate(roomCode) {
+function sendDuelUpdate(roomCode, options = {}) {
   const room = rooms.get(roomCode);
 
   if (!room) {
     return;
   }
 
+  if (room.duel && !options.force) {
+    const now = Date.now();
+
+    if (now - room.duel.lastBroadcastAt < DUEL_BROADCAST_INTERVAL_MS) {
+      return;
+    }
+
+    room.duel.lastBroadcastAt = now;
+  }
+
   io.to(roomCode).emit("duel:update", getPublicDuelState(room));
 }
 
-function resetDuelBall(duel, direction = Math.random() > 0.5 ? 1 : -1) {
-  const speed = 330 + Math.min(120, (duel.score.left + duel.score.right) * 16);
-  const angle = (Math.random() * 0.7 - 0.35) * Math.PI;
+function prepareDuelServe(duel, servingSide = Math.random() > 0.5 ? "left" : "right") {
+  duel.servingSide = servingSide;
+  duel.waitingForServe = true;
+  duel.inputs.left = 0;
+  duel.inputs.right = 0;
+  attachDuelBallToServer(duel);
+}
+
+function attachDuelBallToServer(duel) {
+  const side = duel.servingSide || "left";
+  const direction = side === "left" ? 1 : -1;
 
   duel.ball = {
-    x: DUEL_WIDTH / 2,
-    y: DUEL_HEIGHT / 2,
-    vx: Math.cos(angle) * speed * direction,
-    vy: Math.sin(angle) * speed,
+    x: side === "left"
+      ? DUEL_PADDLE_X + DUEL_BALL_RADIUS + 16
+      : DUEL_WIDTH - DUEL_PADDLE_X - DUEL_BALL_RADIUS - 16,
+    y: duel.paddles[side] * DUEL_HEIGHT,
+    vx: 0,
+    vy: 0,
   };
+}
+
+function serveDuelBall(roomCode, socketId) {
+  const room = rooms.get(roomCode);
+
+  if (!room || !room.duel?.active) {
+    return { ok: false, message: "本局还没有开始" };
+  }
+
+  syncDuelPlayers(room);
+  const duel = room.duel;
+  const side =
+    duel.players.left?.id === socketId
+      ? "left"
+      : duel.players.right?.id === socketId
+        ? "right"
+        : "";
+
+  if (!duel.waitingForServe) {
+    return { ok: false, message: "现在不需要开球" };
+  }
+
+  if (side !== duel.servingSide) {
+    return { ok: false, message: "这次由对手开球" };
+  }
+
+  const direction = side === "left" ? 1 : -1;
+  const speed = 285 + Math.min(90, (duel.score.left + duel.score.right) * 10);
+  const angle = (Math.random() * 0.56 - 0.28) * Math.PI;
+  duel.waitingForServe = false;
+  duel.ball.vx = Math.cos(angle) * speed * direction;
+  duel.ball.vy = Math.sin(angle) * speed;
+  duel.lastTick = Date.now();
+  sendDuelUpdate(roomCode, { force: true });
+  return { ok: true };
 }
 
 function startDuel(roomCode, socketId) {
@@ -1033,10 +1095,11 @@ function startDuel(roomCode, socketId) {
   duel.score.right = 0;
   duel.winner = "";
   duel.settled = false;
-  resetDuelBall(duel);
+  duel.lastBroadcastAt = 0;
+  prepareDuelServe(duel);
   ensureDuelLoop(roomCode);
   sendRoomUpdate(roomCode);
-  sendDuelUpdate(roomCode);
+  sendDuelUpdate(roomCode, { force: true });
   return { ok: true };
 }
 
@@ -1045,7 +1108,7 @@ function ensureDuelLoop(roomCode) {
     return;
   }
 
-  const intervalId = setInterval(() => tickDuel(roomCode), 1000 / 30);
+  const intervalId = setInterval(() => tickDuel(roomCode), DUEL_TICK_INTERVAL_MS);
   duelLoops.set(roomCode, intervalId);
 }
 
@@ -1070,19 +1133,26 @@ function tickDuel(roomCode) {
   const now = Date.now();
   const delta = Math.min(0.05, (now - duel.lastTick) / 1000 || 1 / 30);
   duel.lastTick = now;
-  stepDuel(duel, delta);
+
+  if (duel.waitingForServe) {
+    stepDuelPaddles(duel, delta);
+    attachDuelBallToServer(duel);
+    sendDuelUpdate(roomCode);
+    return;
+  }
+
+  const scored = stepDuel(duel, delta);
 
   if (now >= duel.endsAt) {
     finishDuel(roomCode);
     return;
   }
 
-  sendDuelUpdate(roomCode);
+  sendDuelUpdate(roomCode, { force: scored });
 }
 
 function stepDuel(duel, delta) {
-  duel.paddles.left = clampUnit(duel.paddles.left + (duel.inputs.left * DUEL_PADDLE_SPEED * delta) / DUEL_HEIGHT);
-  duel.paddles.right = clampUnit(duel.paddles.right + (duel.inputs.right * DUEL_PADDLE_SPEED * delta) / DUEL_HEIGHT);
+  stepDuelPaddles(duel, delta);
 
   duel.ball.x += duel.ball.vx * delta;
   duel.ball.y += duel.ball.vy * delta;
@@ -1097,11 +1167,24 @@ function stepDuel(duel, delta) {
 
   if (duel.ball.x < -DUEL_BALL_RADIUS) {
     duel.score.right += 1;
-    resetDuelBall(duel, -1);
+    prepareDuelServe(duel, "left");
+    return true;
   } else if (duel.ball.x > DUEL_WIDTH + DUEL_BALL_RADIUS) {
     duel.score.left += 1;
-    resetDuelBall(duel, 1);
+    prepareDuelServe(duel, "right");
+    return true;
   }
+
+  return false;
+}
+
+function stepDuelPaddles(duel, delta) {
+  duel.paddles.left = clampUnit(
+    duel.paddles.left + (duel.inputs.left * DUEL_PADDLE_SPEED * delta) / DUEL_HEIGHT,
+  );
+  duel.paddles.right = clampUnit(
+    duel.paddles.right + (duel.inputs.right * DUEL_PADDLE_SPEED * delta) / DUEL_HEIGHT,
+  );
 }
 
 function bounceDuelPaddle(duel, side) {
@@ -1118,11 +1201,11 @@ function bounceDuelPaddle(duel, side) {
   }
 
   const hitOffset = (duel.ball.y - paddleY) / (DUEL_PADDLE_HEIGHT / 2);
-  const speed = Math.min(560, Math.hypot(duel.ball.vx, duel.ball.vy) + 18);
+  const speed = Math.min(430, Math.hypot(duel.ball.vx, duel.ball.vy) + 9);
   const direction = side === "left" ? 1 : -1;
 
   duel.ball.vx = speed * direction;
-  duel.ball.vy = hitOffset * 260;
+  duel.ball.vy = hitOffset * 210;
   duel.ball.x = paddleX + direction * (DUEL_BALL_RADIUS + 12);
 }
 
@@ -1354,6 +1437,15 @@ io.on("connection", (socket) => {
   socket.on("duel:start", (_payload = {}, callback) => {
     const roomCode = socket.data.roomCode;
     const result = startDuel(roomCode, socket.id);
+
+    if (typeof callback === "function") {
+      callback(result);
+    }
+  });
+
+  socket.on("duel:serve", (_payload = {}, callback) => {
+    const roomCode = socket.data.roomCode;
+    const result = serveDuelBall(roomCode, socket.id);
 
     if (typeof callback === "function") {
       callback(result);

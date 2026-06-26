@@ -747,6 +747,7 @@ h2 {
 #flappy-restart-button,
 #dodge-restart-button,
 #duel-start-button,
+#duel-serve-button,
 #mine-restart-button {
   padding: 0 16px;
   background: var(--accent);
@@ -757,6 +758,7 @@ h2 {
 #flappy-restart-button:hover,
 #dodge-restart-button:hover,
 #duel-start-button:hover,
+#duel-serve-button:hover,
 #mine-restart-button:hover {
   background: var(--accent-dark);
 }
@@ -1678,6 +1680,12 @@ h2 {
   box-shadow: 0 8px 16px rgba(44, 111, 187, 0.12);
 }
 
+.duel-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .player-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -1877,7 +1885,7 @@ h2 {
 
   .duel-canvas {
     width: 100%;
-    box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
+    box-shadow: 0 6px 14px rgba(24, 33, 42, 0.1);
   }
 
   .duel-touch-controls {
