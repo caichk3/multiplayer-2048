@@ -683,6 +683,19 @@ h2 {
   line-height: 1.45;
 }
 
+.announcement-item strong {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
+  font-size: 0.94rem;
+}
+
+.announcement-item span {
+  display: block;
+  color: var(--muted);
+  font-weight: 750;
+}
+
 .game-topbar,
 .leaderboard-head {
   display: flex;

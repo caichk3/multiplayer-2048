@@ -24,6 +24,7 @@ const globalList = document.querySelector("#global-list");
 const globalCount = document.querySelector("#global-count");
 const announcementPanel = document.querySelector("#announcement-panel");
 const announcementToggle = document.querySelector("#announcement-toggle");
+const announcementsList = document.querySelector("#announcements-list");
 const leaderboardPanel = document.querySelector("#leaderboard-panel");
 const leaderboardToggle = document.querySelector("#leaderboard-toggle");
 const panelCloseButtons = Array.from(document.querySelectorAll("[data-panel-close]"));
@@ -116,6 +117,25 @@ const dodgeDifficultyKey = "class-arcade-dodge-difficulty";
 const untangleDifficultyKey = "class-arcade-untangle-difficulty";
 const untangleBestKey = "class-arcade-untangle-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
+const maxAnnouncements = 10;
+const announcements = [
+  {
+    title: "绳结解谜步数改为动态计算",
+    body: "同一难度下会根据本局初始交叉数、节点数和绳索密度自动调整步数，不再用固定步数卡死。",
+  },
+  {
+    title: "绳结解谜规模提升",
+    body: "四个难度分别调整为 10、20、30、50 个节点，并同步增加绳索数量与复杂度。",
+  },
+  {
+    title: "绳结解谜开局更随机",
+    body: "节点不再主要分布在外围，而是会在画布内部随机生成并挑选更复杂的交叉局面。",
+  },
+  {
+    title: "新增绳结解谜小游戏",
+    body: "加入拖动节点解开绳索交叉的解谜玩法，支持难度选择、有限步数和账号积分结算。",
+  },
+];
 const mineDifficulties = {
   easy: {
     label: "入门",
@@ -231,28 +251,36 @@ const untangleDifficulties = {
     label: "入门",
     nodes: 10,
     targetEdges: 17,
-    moves: 14,
+    baseMoves: 14,
+    minMoves: 12,
+    maxMoves: 22,
     minCrossings: 12,
   },
   normal: {
     label: "标准",
     nodes: 20,
     targetEdges: 37,
-    moves: 28,
+    baseMoves: 28,
+    minMoves: 24,
+    maxMoves: 46,
     minCrossings: 45,
   },
   hard: {
     label: "困难",
     nodes: 30,
     targetEdges: 57,
-    moves: 42,
+    baseMoves: 42,
+    minMoves: 36,
+    maxMoves: 70,
     minCrossings: 95,
   },
   expert: {
     label: "专家",
     nodes: 50,
     targetEdges: 97,
-    moves: 64,
+    baseMoves: 64,
+    minMoves: 58,
+    maxMoves: 112,
     minCrossings: 230,
   },
 };
@@ -1409,6 +1437,24 @@ function closeInfoPanelFromButton(button) {
   leaderboardToggle.setAttribute("aria-expanded", "false");
 }
 
+function renderAnnouncements() {
+  announcementsList.innerHTML = "";
+
+  announcements.slice(0, maxAnnouncements).forEach((announcement) => {
+    const item = document.createElement("li");
+    item.className = "announcement-item";
+
+    const title = document.createElement("strong");
+    title.textContent = announcement.title;
+
+    const body = document.createElement("span");
+    body.textContent = announcement.body;
+
+    item.append(title, body);
+    announcementsList.appendChild(item);
+  });
+}
+
 function formatDuelTime(seconds) {
   const safeSeconds = Math.max(0, Math.ceil(seconds || 0));
   const minutes = Math.floor(safeSeconds / 60);
@@ -2431,7 +2477,7 @@ function getUntangleStatusText() {
     return text.untangleLose;
   }
 
-  return `${difficulty.label}难度：剩余 ${Math.max(0, untangleMovesLimit - untangleMovesUsed)} 步，解开 ${untangleCrossings} 处交叉。`;
+  return `${difficulty.label}难度：本局 ${untangleInitialCrossings || untangleCrossings} 处交叉，剩余 ${Math.max(0, untangleMovesLimit - untangleMovesUsed)} 步。`;
 }
 
 function getUntangleNodeRadius() {
@@ -2779,6 +2825,17 @@ function createUntanglePuzzle(config) {
   };
 }
 
+function calculateUntangleMoveLimit(config, puzzle) {
+  const crossings = Math.max(0, puzzle.crossings || 0);
+  const crossingRatio = config.minCrossings > 0 ? crossings / config.minCrossings : 1;
+  const extraCrossingMoves = Math.ceil(Math.max(0, crossingRatio - 1) * config.baseMoves * 0.34);
+  const density = puzzle.edges.length / Math.max(1, puzzle.nodes.length);
+  const densityMoves = Math.ceil(Math.max(0, density - 1.75) * config.nodes * 0.18);
+  const rawMoves = config.baseMoves + extraCrossingMoves + densityMoves;
+
+  return Math.max(config.minMoves, Math.min(config.maxMoves, rawMoves));
+}
+
 function forceUntangleCrossing(nodes, edges) {
   const result = nodes.map((node) => ({ ...node }));
   const centerX = untangleSettings.width / 2;
@@ -2824,7 +2881,7 @@ function startUntangleGame(options = {}) {
   untangleCrossings = puzzle.crossings;
   untangleInitialCrossings = puzzle.crossings;
   untangleMovesUsed = 0;
-  untangleMovesLimit = difficulty.moves;
+  untangleMovesLimit = calculateUntangleMoveLimit(difficulty, puzzle);
   untangleStartedAt = 0;
   untangleGameOver = false;
   untangleWon = false;
@@ -4354,6 +4411,7 @@ window.addEventListener("resize", () => {
 });
 
 setupBoardMarkup();
+renderAnnouncements();
 mineDifficultySelect.value = mineDifficulty;
 dodgeDifficultySelect.value = dodgeDifficulty;
 untangleDifficultySelect.value = untangleDifficulty;
