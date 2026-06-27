@@ -231,25 +231,29 @@ const untangleDifficulties = {
     label: "入门",
     nodes: 6,
     targetEdges: 8,
-    moves: 16,
+    moves: 10,
+    minCrossings: 3,
   },
   normal: {
     label: "标准",
     nodes: 9,
     targetEdges: 13,
-    moves: 24,
+    moves: 16,
+    minCrossings: 7,
   },
   hard: {
     label: "困难",
     nodes: 12,
     targetEdges: 20,
-    moves: 34,
+    moves: 24,
+    minCrossings: 13,
   },
   expert: {
     label: "专家",
     nodes: 15,
     targetEdges: 28,
-    moves: 46,
+    moves: 32,
+    minCrossings: 21,
   },
 };
 const text = {
@@ -2558,33 +2562,77 @@ function createUntangleEdges(count, targetEdges, positions) {
   return edges;
 }
 
-function createUntangleScrambledNodes(solvedPositions) {
+function getUntangleRandomScramblePoint(config) {
+  const margin = untangleSettings.margin + 8;
+  const centerX = untangleSettings.width / 2;
+  const centerY = untangleSettings.height / 2;
+  const centerBias = config.nodes >= 12 ? 0.58 : 0.46;
+
+  if (Math.random() < centerBias) {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.sqrt(Math.random()) * Math.min(untangleSettings.width, untangleSettings.height) * 0.34;
+
+    return {
+      x: Math.max(
+        margin,
+        Math.min(untangleSettings.width - margin, centerX + Math.cos(angle) * radius * 1.28),
+      ),
+      y: Math.max(
+        margin,
+        Math.min(untangleSettings.height - margin, centerY + Math.sin(angle) * radius * 0.92),
+      ),
+    };
+  }
+
+  return {
+    x: margin + Math.random() * (untangleSettings.width - margin * 2),
+    y: margin + Math.random() * (untangleSettings.height - margin * 2),
+  };
+}
+
+function getUntangleMinimumNodeDistance(count) {
+  if (count <= 6) return 62;
+  if (count <= 9) return 50;
+  if (count <= 12) return 42;
+  return 34;
+}
+
+function createUntangleScrambledNodes(solvedPositions, config) {
   const count = solvedPositions.length;
-  let permutation = [];
+  const minimumDistance = getUntangleMinimumNodeDistance(count);
+  const points = [];
 
-  for (let attempt = 0; attempt < 40; attempt += 1) {
-    permutation = shuffleUntangleItems(Array.from({ length: count }, (_, index) => index));
-    const fixedCount = permutation.filter((value, index) => value === index).length;
+  for (let index = 0; index < count; index += 1) {
+    let bestPoint = null;
+    let bestDistance = -1;
 
-    if (fixedCount <= Math.max(1, Math.floor(count / 4))) {
-      break;
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const point = getUntangleRandomScramblePoint(config);
+      const nearestDistance = points.length === 0
+        ? Infinity
+        : Math.min(...points.map((existing) => Math.hypot(existing.x - point.x, existing.y - point.y)));
+
+      if (nearestDistance >= minimumDistance) {
+        bestPoint = point;
+        break;
+      }
+
+      if (nearestDistance > bestDistance) {
+        bestPoint = point;
+        bestDistance = nearestDistance;
+      }
     }
+
+    points.push(bestPoint);
   }
 
   return solvedPositions.map((position, index) => {
-    const scrambled = solvedPositions[permutation[index]];
-    const jitter = count <= 6 ? 18 : 26;
+    const scrambled = points[index];
 
     return {
       id: index,
-      x: Math.max(
-        untangleSettings.margin,
-        Math.min(untangleSettings.width - untangleSettings.margin, scrambled.x + (Math.random() - 0.5) * jitter),
-      ),
-      y: Math.max(
-        untangleSettings.margin,
-        Math.min(untangleSettings.height - untangleSettings.margin, scrambled.y + (Math.random() - 0.5) * jitter),
-      ),
+      x: scrambled.x,
+      y: scrambled.y,
       solutionX: position.x,
       solutionY: position.y,
     };
@@ -2646,12 +2694,13 @@ function getUntangleCrossingInfo(nodes = untangleNodes, edges = untangleEdges) {
 function createUntanglePuzzle(config) {
   const solvedPositions = getUntangleSolvedPositions(config.nodes);
   const edges = createUntangleEdges(config.nodes, config.targetEdges, solvedPositions);
-  const minimumCrossings = config.nodes <= 6 ? 1 : config.nodes <= 9 ? 3 : 5;
+  const minimumCrossings = config.minCrossings || (config.nodes <= 6 ? 2 : config.nodes <= 9 ? 5 : 9);
   let bestNodes = [];
   let bestCrossings = -1;
+  const attempts = config.nodes >= 12 ? 220 : 160;
 
-  for (let attempt = 0; attempt < 100; attempt += 1) {
-    const nodes = createUntangleScrambledNodes(solvedPositions);
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const nodes = createUntangleScrambledNodes(solvedPositions, config);
     const crossings = getUntangleCrossingInfo(nodes, edges).count;
 
     if (crossings > bestCrossings) {
@@ -2659,8 +2708,8 @@ function createUntanglePuzzle(config) {
       bestCrossings = crossings;
     }
 
-    if (crossings >= minimumCrossings) {
-      return { nodes, edges, crossings };
+    if (crossings >= minimumCrossings && attempt > attempts * 0.72) {
+      break;
     }
   }
 
