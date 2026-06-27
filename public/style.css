@@ -1957,7 +1957,9 @@ h2 {
   }
 
   .untangle-canvas {
-    width: 100%;
+    width: min(100%, 430px);
+    height: auto;
+    aspect-ratio: 26 / 41;
     box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
   }
 

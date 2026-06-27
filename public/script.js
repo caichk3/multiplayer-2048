@@ -117,8 +117,13 @@ const dodgeDifficultyKey = "class-arcade-dodge-difficulty";
 const untangleDifficultyKey = "class-arcade-untangle-difficulty";
 const untangleBestKey = "class-arcade-untangle-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
+const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const maxAnnouncements = 10;
 const announcements = [
+  {
+    title: "绳结解谜手机端改为竖屏大画布",
+    body: "手机浏览器会使用竖向题面和更高的操作区域，节点坐标也会同步切换到竖版布局，方便拖动。",
+  },
   {
     title: "绳结解谜步数改为动态计算",
     body: "同一难度下会根据本局初始交叉数、节点数和绳索密度自动调整步数，不再用固定步数卡死。",
@@ -240,10 +245,20 @@ const dodgeDifficulties = {
     earlyBurstAfter: 4,
   },
 };
+const untangleLayouts = {
+  desktop: {
+    width: 720,
+    height: 520,
+    margin: 58,
+  },
+  mobile: {
+    width: 520,
+    height: 820,
+    margin: 42,
+  },
+};
 const untangleSettings = {
-  width: 720,
-  height: 520,
-  margin: 58,
+  ...untangleLayouts.desktop,
   nodeRadius: 18,
 };
 const untangleDifficulties = {
@@ -2466,6 +2481,58 @@ function preventDodgeButtonSelection(event) {
   event.preventDefault();
 }
 
+function getUntangleLayout() {
+  return untangleLayoutQuery.matches ? untangleLayouts.mobile : untangleLayouts.desktop;
+}
+
+function scaleUntanglePoint(point, scaleX, scaleY) {
+  return {
+    ...point,
+    x: point.x * scaleX,
+    y: point.y * scaleY,
+    solutionX: point.solutionX * scaleX,
+    solutionY: point.solutionY * scaleY,
+  };
+}
+
+function applyUntangleCanvasLayout(options = {}) {
+  const layout = getUntangleLayout();
+  const previousWidth = untangleSettings.width;
+  const previousHeight = untangleSettings.height;
+  const changed =
+    previousWidth !== layout.width ||
+    previousHeight !== layout.height ||
+    untangleCanvas.width !== layout.width ||
+    untangleCanvas.height !== layout.height;
+
+  if (!changed) {
+    return false;
+  }
+
+  untangleSettings.width = layout.width;
+  untangleSettings.height = layout.height;
+  untangleSettings.margin = layout.margin;
+  untangleCanvas.width = layout.width;
+  untangleCanvas.height = layout.height;
+  untangleCanvas.classList.toggle("is-portrait", untangleLayoutQuery.matches);
+
+  if (options.scaleExisting !== false && untangleNodes.length > 0) {
+    const scaleX = layout.width / Math.max(1, previousWidth);
+    const scaleY = layout.height / Math.max(1, previousHeight);
+    untangleNodes = untangleNodes.map((node) => scaleUntanglePoint(node, scaleX, scaleY));
+  }
+
+  return true;
+}
+
+function handleUntangleLayoutChange() {
+  const changed = applyUntangleCanvasLayout({ scaleExisting: true });
+
+  if (changed && untangleNodes.length > 0) {
+    renderUntangle();
+  }
+}
+
 function getUntangleStatusText() {
   const difficulty = getUntangleDifficulty();
 
@@ -2873,6 +2940,7 @@ function startUntangleGame(options = {}) {
     settleUntangleGame("restart");
   }
 
+  applyUntangleCanvasLayout({ scaleExisting: false });
   const difficulty = getUntangleDifficulty();
   const puzzle = createUntanglePuzzle(difficulty);
   untangleGameId = createGameId();
@@ -4404,14 +4472,22 @@ if (typeof mineLightModeQuery.addEventListener === "function") {
 } else {
   mineLightModeQuery.addListener(handleMineLightModeChange);
 }
+if (typeof untangleLayoutQuery.addEventListener === "function") {
+  untangleLayoutQuery.addEventListener("change", handleUntangleLayoutChange);
+} else {
+  untangleLayoutQuery.addListener(handleUntangleLayoutChange);
+}
 window.addEventListener("resize", () => {
   if (mineBoard.length > 0) {
     renderMinesweeperBoard();
   }
+
+  handleUntangleLayoutChange();
 });
 
 setupBoardMarkup();
 renderAnnouncements();
+applyUntangleCanvasLayout({ scaleExisting: false });
 mineDifficultySelect.value = mineDifficulty;
 dodgeDifficultySelect.value = dodgeDifficulty;
 untangleDifficultySelect.value = untangleDifficulty;
