@@ -229,31 +229,31 @@ const untangleSettings = {
 const untangleDifficulties = {
   easy: {
     label: "入门",
-    nodes: 6,
-    targetEdges: 8,
-    moves: 10,
-    minCrossings: 3,
+    nodes: 10,
+    targetEdges: 17,
+    moves: 14,
+    minCrossings: 12,
   },
   normal: {
     label: "标准",
-    nodes: 9,
-    targetEdges: 13,
-    moves: 16,
-    minCrossings: 7,
+    nodes: 20,
+    targetEdges: 37,
+    moves: 28,
+    minCrossings: 45,
   },
   hard: {
     label: "困难",
-    nodes: 12,
-    targetEdges: 20,
-    moves: 24,
-    minCrossings: 13,
+    nodes: 30,
+    targetEdges: 57,
+    moves: 42,
+    minCrossings: 95,
   },
   expert: {
     label: "专家",
-    nodes: 15,
-    targetEdges: 28,
-    moves: 32,
-    minCrossings: 21,
+    nodes: 50,
+    targetEdges: 97,
+    moves: 64,
+    minCrossings: 230,
   },
 };
 const text = {
@@ -2434,6 +2434,42 @@ function getUntangleStatusText() {
   return `${difficulty.label}难度：剩余 ${Math.max(0, untangleMovesLimit - untangleMovesUsed)} 步，解开 ${untangleCrossings} 处交叉。`;
 }
 
+function getUntangleNodeRadius() {
+  const count = untangleNodes.length || getUntangleDifficulty().nodes;
+
+  if (count <= 10) return 17;
+  if (count <= 20) return 13;
+  if (count <= 30) return 10;
+  return 7;
+}
+
+function getUntangleNodeFontSize() {
+  const count = untangleNodes.length || getUntangleDifficulty().nodes;
+
+  if (count <= 10) return 14;
+  if (count <= 20) return 11;
+  if (count <= 30) return 9;
+  return 0;
+}
+
+function getUntangleEdgeWidth(isCrossing) {
+  const count = untangleNodes.length || getUntangleDifficulty().nodes;
+
+  if (count >= 50) {
+    return isCrossing ? 1.55 : 0.85;
+  }
+
+  if (count >= 30) {
+    return isCrossing ? 2 : 1.15;
+  }
+
+  if (count >= 20) {
+    return isCrossing ? 2.5 : 1.5;
+  }
+
+  return isCrossing ? 3.4 : 2.2;
+}
+
 function updateUntangleStatsDisplay() {
   untangleCrossingsElement.textContent = String(untangleCrossings);
   untangleMovesElement.textContent = String(Math.max(0, untangleMovesLimit - untangleMovesUsed));
@@ -2566,11 +2602,19 @@ function getUntangleRandomScramblePoint(config) {
   const margin = untangleSettings.margin + 8;
   const centerX = untangleSettings.width / 2;
   const centerY = untangleSettings.height / 2;
-  const centerBias = config.nodes >= 12 ? 0.58 : 0.46;
+  const centerBias =
+    config.nodes >= 50
+      ? 0.72
+      : config.nodes >= 30
+        ? 0.66
+        : config.nodes >= 20
+          ? 0.6
+          : 0.5;
 
   if (Math.random() < centerBias) {
     const angle = Math.random() * Math.PI * 2;
-    const radius = Math.sqrt(Math.random()) * Math.min(untangleSettings.width, untangleSettings.height) * 0.34;
+    const radiusFactor = config.nodes >= 50 ? 0.4 : config.nodes >= 30 ? 0.37 : 0.34;
+    const radius = Math.sqrt(Math.random()) * Math.min(untangleSettings.width, untangleSettings.height) * radiusFactor;
 
     return {
       x: Math.max(
@@ -2591,10 +2635,10 @@ function getUntangleRandomScramblePoint(config) {
 }
 
 function getUntangleMinimumNodeDistance(count) {
-  if (count <= 6) return 62;
-  if (count <= 9) return 50;
-  if (count <= 12) return 42;
-  return 34;
+  if (count <= 10) return 48;
+  if (count <= 20) return 30;
+  if (count <= 30) return 22;
+  return 15;
 }
 
 function createUntangleScrambledNodes(solvedPositions, config) {
@@ -2677,14 +2721,17 @@ function getUntangleCrossingInfo(nodes = untangleNodes, edges = untangleEdges) {
       count += 1;
       crossingEdges.add(first);
       crossingEdges.add(second);
-      points.push(
-        getUntangleIntersectionPoint(
-          nodes[firstEdge.a],
-          nodes[firstEdge.b],
-          nodes[secondEdge.a],
-          nodes[secondEdge.b],
-        ),
-      );
+
+      if (points.length < 360) {
+        points.push(
+          getUntangleIntersectionPoint(
+            nodes[firstEdge.a],
+            nodes[firstEdge.b],
+            nodes[secondEdge.a],
+            nodes[secondEdge.b],
+          ),
+        );
+      }
     }
   }
 
@@ -2697,7 +2744,14 @@ function createUntanglePuzzle(config) {
   const minimumCrossings = config.minCrossings || (config.nodes <= 6 ? 2 : config.nodes <= 9 ? 5 : 9);
   let bestNodes = [];
   let bestCrossings = -1;
-  const attempts = config.nodes >= 12 ? 220 : 160;
+  const attempts =
+    config.nodes >= 50
+      ? 150
+      : config.nodes >= 30
+        ? 190
+        : config.nodes >= 20
+          ? 210
+          : 160;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     const nodes = createUntangleScrambledNodes(solvedPositions, config);
@@ -2830,7 +2884,7 @@ function drawUntangleEdges(context, crossingEdges) {
     const isCrossing = crossingEdges.has(index);
 
     context.strokeStyle = isCrossing ? "rgba(186, 63, 74, 0.86)" : "rgba(24, 124, 104, 0.52)";
-    context.lineWidth = isCrossing ? 3.4 : 2.2;
+    context.lineWidth = getUntangleEdgeWidth(isCrossing);
     context.lineCap = "round";
     context.beginPath();
     context.moveTo(start.x, start.y);
@@ -2840,38 +2894,44 @@ function drawUntangleEdges(context, crossingEdges) {
 }
 
 function drawUntangleCrossings(context, points) {
+  const markerRadius = untangleNodes.length >= 50 ? 2.2 : untangleNodes.length >= 30 ? 3 : 4.5;
   context.fillStyle = "rgba(186, 63, 74, 0.9)";
 
   points.forEach((point) => {
     context.beginPath();
-    context.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+    context.arc(point.x, point.y, markerRadius, 0, Math.PI * 2);
     context.fill();
   });
 }
 
 function drawUntangleNodes(context) {
+  const baseRadius = getUntangleNodeRadius();
+  const fontSize = getUntangleNodeFontSize();
+
   untangleNodes.forEach((node) => {
     const isDragging = untangleDragNode === node.id;
-    const radius = untangleSettings.nodeRadius + (isDragging ? 2 : 0);
+    const radius = baseRadius + (isDragging ? Math.max(2, baseRadius * 0.26) : 0);
 
     context.save();
     context.shadowColor = "rgba(24, 33, 42, 0.18)";
-    context.shadowBlur = isDragging ? 16 : 9;
-    context.shadowOffsetY = 4;
+    context.shadowBlur = isDragging ? 14 : Math.max(4, baseRadius * 0.5);
+    context.shadowOffsetY = Math.max(2, baseRadius * 0.22);
     context.fillStyle = untangleWon ? "#dff4eb" : "#ffffff";
     context.strokeStyle = isDragging ? "#d68631" : "#187c68";
-    context.lineWidth = isDragging ? 4 : 3;
+    context.lineWidth = isDragging ? Math.max(2.5, baseRadius * 0.26) : Math.max(1.5, baseRadius * 0.18);
     context.beginPath();
     context.arc(node.x, node.y, radius, 0, Math.PI * 2);
     context.fill();
     context.stroke();
     context.restore();
 
-    context.fillStyle = "#18212a";
-    context.font = "900 14px Inter, Arial, sans-serif";
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(String(node.id + 1), node.x, node.y + 0.5);
+    if (fontSize > 0) {
+      context.fillStyle = "#18212a";
+      context.font = `900 ${fontSize}px Inter, Arial, sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(String(node.id + 1), node.x, node.y + 0.5);
+    }
   });
 }
 
@@ -2907,7 +2967,7 @@ function getUntangleCanvasPoint(event) {
 }
 
 function getUntangleNodeAt(point) {
-  const pickRadius = untangleSettings.nodeRadius + 12;
+  const pickRadius = Math.max(18, getUntangleNodeRadius() + 11);
   let closest = null;
   let closestDistance = Infinity;
 
@@ -2924,7 +2984,7 @@ function getUntangleNodeAt(point) {
 }
 
 function clampUntangleNode(point) {
-  const margin = untangleSettings.nodeRadius + 8;
+  const margin = getUntangleNodeRadius() + 8;
 
   return {
     x: Math.max(margin, Math.min(untangleSettings.width - margin, point.x)),
