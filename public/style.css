@@ -212,7 +212,7 @@ h2 {
 
 .profile-strip {
   display: grid;
-  grid-template-columns: repeat(7, minmax(82px, auto)) auto;
+  grid-template-columns: repeat(8, minmax(82px, auto)) auto;
   align-items: center;
   gap: 10px;
 }
@@ -259,7 +259,7 @@ h2 {
 
 .game-catalog {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -356,6 +356,25 @@ h2 {
 
 .game-card[data-game="dodge"]::before {
   background: rgba(24, 124, 104, 0.08);
+}
+
+.game-card[data-game="untangle"]::after {
+  top: 18px;
+  right: 18px;
+  width: 28px;
+  height: 28px;
+  background:
+    radial-gradient(circle at 15% 16%, #187c68 0 4px, transparent 4.5px),
+    radial-gradient(circle at 82% 24%, #d68631 0 4px, transparent 4.5px),
+    radial-gradient(circle at 28% 82%, #2c6fbb 0 4px, transparent 4.5px),
+    radial-gradient(circle at 82% 80%, #ba3f4a 0 4px, transparent 4.5px),
+    linear-gradient(43deg, transparent 0 45%, rgba(24, 33, 42, 0.68) 45% 54%, transparent 54%),
+    linear-gradient(134deg, transparent 0 45%, rgba(24, 33, 42, 0.58) 45% 54%, transparent 54%),
+    linear-gradient(16deg, transparent 0 48%, rgba(24, 33, 42, 0.48) 48% 54%, transparent 54%);
+}
+
+.game-card[data-game="untangle"]::before {
+  background: rgba(186, 63, 74, 0.08);
 }
 
 .game-card[data-game="paddleduel"]::after {
@@ -719,21 +738,24 @@ h2 {
 }
 
 .mine-controls,
-.dodge-controls {
+.dodge-controls,
+.untangle-controls {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 
 .mine-controls label,
-.dodge-controls label {
+.dodge-controls label,
+.untangle-controls label {
   color: var(--muted);
   font-size: 0.82rem;
   font-weight: 900;
 }
 
 .mine-controls select,
-.dodge-controls select {
+.dodge-controls select,
+.untangle-controls select {
   min-height: 42px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -748,7 +770,8 @@ h2 {
 #dodge-restart-button,
 #duel-start-button,
 #duel-serve-button,
-#mine-restart-button {
+#mine-restart-button,
+#untangle-restart-button {
   padding: 0 16px;
   background: var(--accent);
   color: #ffffff;
@@ -759,7 +782,8 @@ h2 {
 #dodge-restart-button:hover,
 #duel-start-button:hover,
 #duel-serve-button:hover,
-#mine-restart-button:hover {
+#mine-restart-button:hover,
+#untangle-restart-button:hover {
   background: var(--accent-dark);
 }
 
@@ -1686,6 +1710,34 @@ h2 {
   flex-wrap: wrap;
 }
 
+.untangle-score-panel {
+  grid-template-columns: repeat(3, minmax(82px, 1fr));
+}
+
+.untangle-stage-wrap {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: 6px 0;
+}
+
+.untangle-canvas {
+  display: block;
+  width: min(100%, 760px);
+  aspect-ratio: 18 / 13;
+  border: 1px solid rgba(24, 33, 42, 0.12);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(24, 124, 104, 0.08), rgba(214, 134, 49, 0.08)),
+    #f8faf6;
+  box-shadow: var(--shadow);
+  touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+}
+
 .player-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -1845,7 +1897,8 @@ h2 {
   }
 
   .mine-controls,
-  .dodge-controls {
+  .dodge-controls,
+  .untangle-controls {
     align-items: stretch;
     flex-wrap: wrap;
   }
@@ -1853,7 +1906,9 @@ h2 {
   .mine-controls select,
   .mine-controls button,
   .dodge-controls select,
-  .dodge-controls button {
+  .dodge-controls button,
+  .untangle-controls select,
+  .untangle-controls button {
     flex: 1 1 130px;
   }
 
@@ -1886,6 +1941,11 @@ h2 {
   .duel-canvas {
     width: 100%;
     box-shadow: 0 6px 14px rgba(24, 33, 42, 0.1);
+  }
+
+  .untangle-canvas {
+    width: 100%;
+    box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
   }
 
   .duel-touch-controls {

@@ -43,12 +43,14 @@ const profileBest = document.querySelector("#profile-best");
 const profileMinesweeperWins = document.querySelector("#profile-minesweeper-wins");
 const profileFlappyBest = document.querySelector("#profile-flappy-best");
 const profileDodgeBest = document.querySelector("#profile-dodge-best");
+const profileUntangleWins = document.querySelector("#profile-untangle-wins");
 const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"));
 const roomPanel = document.querySelector("#room-panel");
 const game2048Panel = document.querySelector("#game-2048");
 const gameMinesweeperPanel = document.querySelector("#game-minesweeper3d");
 const gameFlappyPanel = document.querySelector("#game-flappy");
 const gameDodgePanel = document.querySelector("#game-dodge");
+const gameUntanglePanel = document.querySelector("#game-untangle");
 const gameDuelPanel = document.querySelector("#game-paddleduel");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
@@ -77,6 +79,14 @@ const dodgeTimeElement = document.querySelector("#dodge-time");
 const dodgeGrazesElement = document.querySelector("#dodge-grazes");
 const dodgeBestElement = document.querySelector("#dodge-best");
 const dodgeMoveButtons = Array.from(document.querySelectorAll("[data-dodge-move]"));
+const untangleCanvas = document.querySelector("#untangle-canvas");
+const untangleContext = untangleCanvas.getContext("2d");
+const untangleStatusText = document.querySelector("#untangle-status-text");
+const untangleRestartButton = document.querySelector("#untangle-restart-button");
+const untangleDifficultySelect = document.querySelector("#untangle-difficulty");
+const untangleCrossingsElement = document.querySelector("#untangle-crossings");
+const untangleMovesElement = document.querySelector("#untangle-moves");
+const untangleBestElement = document.querySelector("#untangle-best");
 const duelCanvas = document.querySelector("#duel-canvas");
 const duelContext = duelCanvas.getContext("2d");
 const duelScoreElement = document.querySelector("#duel-score");
@@ -91,6 +101,7 @@ const GAME_2048 = "2048";
 const GAME_MINESWEEPER = "minesweeper3d";
 const GAME_FLAPPY = "flappy";
 const GAME_DODGE = "dodge";
+const GAME_UNTANGLE = "untangle";
 const GAME_DUEL = "paddleduel";
 const size = 4;
 const totalCells = size * size;
@@ -102,6 +113,8 @@ const mineDifficultyKey = "class-arcade-minesweeper-difficulty";
 const flappyBestKey = "class-arcade-flappy-best";
 const dodgeBestKey = "class-arcade-dodge-best";
 const dodgeDifficultyKey = "class-arcade-dodge-difficulty";
+const untangleDifficultyKey = "class-arcade-untangle-difficulty";
+const untangleBestKey = "class-arcade-untangle-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const mineDifficulties = {
   easy: {
@@ -207,6 +220,38 @@ const dodgeDifficulties = {
     earlyBurstAfter: 4,
   },
 };
+const untangleSettings = {
+  width: 720,
+  height: 520,
+  margin: 58,
+  nodeRadius: 18,
+};
+const untangleDifficulties = {
+  easy: {
+    label: "入门",
+    nodes: 6,
+    targetEdges: 8,
+    moves: 16,
+  },
+  normal: {
+    label: "标准",
+    nodes: 9,
+    targetEdges: 13,
+    moves: 24,
+  },
+  hard: {
+    label: "困难",
+    nodes: 12,
+    targetEdges: 20,
+    moves: 34,
+  },
+  expert: {
+    label: "专家",
+    nodes: 15,
+    targetEdges: 28,
+    moves: 46,
+  },
+};
 const text = {
   ready: "已经进入房间，开始挑战吧。本局结束或重新开始时会结算平台积分。",
   waiting: "滑动方块合成 2048，本局结束或重开时会结算积分。",
@@ -225,6 +270,9 @@ const text = {
   dodgeReady: "点击画面或按空格开始，移动飞机躲避随机子弹。",
   dodgePlaying: "保持移动，子弹会越来越密，贴近躲开可以擦弹加分。",
   dodgeOver: "被击中了，本局时间已结算。",
+  untangleReady: "拖动节点，让任意两条绳索不再交叉。",
+  untangleWin: "全部绳索已解开，积分已结算。",
+  untangleLose: "步数用完了，重新观察一下绳子的结构再试。",
 };
 
 let currentGame = localStorage.getItem(currentGameKey) || GAME_2048;
@@ -304,6 +352,24 @@ let dodgeAnimationId = null;
 let dodgeLastFrameTime = 0;
 let dodgeNextSpawnIn = 0;
 let dodgeSettled = false;
+let untangleGameId = createGameId();
+let untangleDifficulty = localStorage.getItem(untangleDifficultyKey) || "normal";
+let untangleBest = Number(localStorage.getItem(untangleBestKey)) || 0;
+let untangleNodes = [];
+let untangleEdges = [];
+let untangleCrossings = 0;
+let untangleInitialCrossings = 0;
+let untangleMovesUsed = 0;
+let untangleMovesLimit = 0;
+let untangleStartedAt = 0;
+let untangleGameOver = false;
+let untangleWon = false;
+let untangleSettled = false;
+let untangleDragNode = null;
+let untangleDragPointerId = null;
+let untangleDragStartX = 0;
+let untangleDragStartY = 0;
+let untangleDidMove = false;
 let duelState = null;
 let duelSide = "";
 let duelInputDirection = 0;
@@ -315,6 +381,10 @@ if (!mineDifficulties[mineDifficulty]) {
 
 if (!dodgeDifficulties[dodgeDifficulty]) {
   dodgeDifficulty = "normal";
+}
+
+if (!untangleDifficulties[untangleDifficulty]) {
+  untangleDifficulty = "normal";
 }
 
 function createGameId() {
@@ -373,6 +443,21 @@ function setDodgeDifficulty(value) {
   localStorage.setItem(dodgeDifficultyKey, dodgeDifficulty);
   dodgeDifficultySelect.value = dodgeDifficulty;
   resetDodgeGame();
+}
+
+function getUntangleDifficulty() {
+  return untangleDifficulties[untangleDifficulty] || untangleDifficulties.normal;
+}
+
+function setUntangleDifficulty(value) {
+  if (!untangleDifficulties[value]) {
+    return;
+  }
+
+  untangleDifficulty = value;
+  localStorage.setItem(untangleDifficultyKey, untangleDifficulty);
+  untangleDifficultySelect.value = untangleDifficulty;
+  startUntangleGame();
 }
 
 function setupBoardMarkup() {
@@ -486,6 +571,7 @@ function renderAccount(nextProfile) {
     profileMinesweeperWins.textContent = "0";
     profileFlappyBest.textContent = "0";
     profileDodgeBest.textContent = "0.0s";
+    profileUntangleWins.textContent = "0";
     renderAuthView();
     updateRoomActions();
     return;
@@ -507,6 +593,7 @@ function renderAccount(nextProfile) {
   localStorage.setItem(dodgeBestKey, String(dodgeBest));
   profileDodgeBest.textContent = formatDodgeTime(dodgeBest);
   dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
+  profileUntangleWins.textContent = String(profile.stats.untangle?.wins || 0);
   profileStrip.hidden = false;
   createRoomButton.disabled = false;
   joinRoomButton.disabled = false;
@@ -519,6 +606,7 @@ function updateRoomActions() {
   const showMinesweeper = currentGame === GAME_MINESWEEPER;
   const showFlappy = currentGame === GAME_FLAPPY;
   const showDodge = currentGame === GAME_DODGE;
+  const showUntangle = currentGame === GAME_UNTANGLE;
   const showDuel = currentGame === GAME_DUEL;
   const showRoom = show2048 || showDuel;
   roomPanel.hidden = !showRoom;
@@ -527,6 +615,7 @@ function updateRoomActions() {
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
   gameDodgePanel.classList.toggle("is-hidden", !showDodge);
+  gameUntanglePanel.classList.toggle("is-hidden", !showUntangle);
   gameDuelPanel.classList.toggle("is-hidden", !showDuel);
 
   gameCards.forEach((card) => {
@@ -549,6 +638,9 @@ function updateRoomActions() {
       ? text.dodgeOver
       : `${getDodgeDifficulty().label}难度：${text.dodgeReady}`;
     renderDodge();
+  } else if (showUntangle) {
+    untangleStatusText.textContent = getUntangleStatusText();
+    renderUntangle();
   } else if (showDuel) {
     renderDuel();
     updateDuelStatus();
@@ -570,7 +662,7 @@ function setActiveGame(gameId, options = {}) {
     dodgeKeys.clear();
   }
 
-  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_DODGE, GAME_DUEL].includes(gameId)
+  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_DODGE, GAME_UNTANGLE, GAME_DUEL].includes(gameId)
     ? gameId
     : GAME_2048;
 
@@ -1265,7 +1357,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
 
     info.append(name, meta);
 
@@ -2322,6 +2414,617 @@ function setDodgeMoveButton(button, pressed) {
 
 function preventDodgeButtonSelection(event) {
   event.preventDefault();
+}
+
+function getUntangleStatusText() {
+  const difficulty = getUntangleDifficulty();
+
+  if (untangleWon) {
+    return text.untangleWin;
+  }
+
+  if (untangleGameOver) {
+    return text.untangleLose;
+  }
+
+  return `${difficulty.label}难度：剩余 ${Math.max(0, untangleMovesLimit - untangleMovesUsed)} 步，解开 ${untangleCrossings} 处交叉。`;
+}
+
+function updateUntangleStatsDisplay() {
+  untangleCrossingsElement.textContent = String(untangleCrossings);
+  untangleMovesElement.textContent = String(Math.max(0, untangleMovesLimit - untangleMovesUsed));
+  untangleBestElement.textContent = String(untangleBest);
+}
+
+function getUntangleSolvedPositions(count) {
+  const centerX = untangleSettings.width / 2;
+  const centerY = untangleSettings.height / 2;
+  const radiusX = untangleSettings.width / 2 - untangleSettings.margin;
+  const radiusY = untangleSettings.height / 2 - untangleSettings.margin;
+
+  return Array.from({ length: count }, (_, index) => {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * index) / count;
+
+    return {
+      x: centerX + Math.cos(angle) * radiusX,
+      y: centerY + Math.sin(angle) * radiusY,
+    };
+  });
+}
+
+function getUntangleEdgeKey(a, b) {
+  return a < b ? `${a}-${b}` : `${b}-${a}`;
+}
+
+function shuffleUntangleItems(items) {
+  const result = [...items];
+
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+
+  return result;
+}
+
+function getUntangleOrientation(a, b, c) {
+  return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+}
+
+function isUntanglePointOnSegment(a, b, c) {
+  const epsilon = 0.0001;
+
+  return (
+    Math.min(a.x, c.x) - epsilon <= b.x &&
+    b.x <= Math.max(a.x, c.x) + epsilon &&
+    Math.min(a.y, c.y) - epsilon <= b.y &&
+    b.y <= Math.max(a.y, c.y) + epsilon
+  );
+}
+
+function doUntangleSegmentsIntersect(a, b, c, d) {
+  const epsilon = 0.0001;
+  const first = getUntangleOrientation(a, b, c);
+  const second = getUntangleOrientation(a, b, d);
+  const third = getUntangleOrientation(c, d, a);
+  const fourth = getUntangleOrientation(c, d, b);
+
+  if (Math.abs(first) < epsilon && isUntanglePointOnSegment(a, c, b)) return true;
+  if (Math.abs(second) < epsilon && isUntanglePointOnSegment(a, d, b)) return true;
+  if (Math.abs(third) < epsilon && isUntanglePointOnSegment(c, a, d)) return true;
+  if (Math.abs(fourth) < epsilon && isUntanglePointOnSegment(c, b, d)) return true;
+
+  return (
+    (first > epsilon && second < -epsilon || first < -epsilon && second > epsilon) &&
+    (third > epsilon && fourth < -epsilon || third < -epsilon && fourth > epsilon)
+  );
+}
+
+function doUntangleEdgesCross(firstEdge, secondEdge, nodes) {
+  if (
+    firstEdge.a === secondEdge.a ||
+    firstEdge.a === secondEdge.b ||
+    firstEdge.b === secondEdge.a ||
+    firstEdge.b === secondEdge.b
+  ) {
+    return false;
+  }
+
+  return doUntangleSegmentsIntersect(
+    nodes[firstEdge.a],
+    nodes[firstEdge.b],
+    nodes[secondEdge.a],
+    nodes[secondEdge.b],
+  );
+}
+
+function canAddUntangleEdge(edges, candidate, positions) {
+  return edges.every((edge) => !doUntangleEdgesCross(edge, candidate, positions));
+}
+
+function createUntangleEdges(count, targetEdges, positions) {
+  const edges = [];
+  const used = new Set();
+
+  for (let index = 0; index < count; index += 1) {
+    const next = (index + 1) % count;
+    edges.push({ a: index, b: next });
+    used.add(getUntangleEdgeKey(index, next));
+  }
+
+  const candidates = [];
+
+  for (let a = 0; a < count; a += 1) {
+    for (let b = a + 1; b < count; b += 1) {
+      const key = getUntangleEdgeKey(a, b);
+
+      if (!used.has(key)) {
+        candidates.push({ a, b });
+      }
+    }
+  }
+
+  shuffleUntangleItems(candidates).forEach((candidate) => {
+    if (edges.length >= targetEdges) {
+      return;
+    }
+
+    if (canAddUntangleEdge(edges, candidate, positions)) {
+      edges.push(candidate);
+      used.add(getUntangleEdgeKey(candidate.a, candidate.b));
+    }
+  });
+
+  return edges;
+}
+
+function createUntangleScrambledNodes(solvedPositions) {
+  const count = solvedPositions.length;
+  let permutation = [];
+
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    permutation = shuffleUntangleItems(Array.from({ length: count }, (_, index) => index));
+    const fixedCount = permutation.filter((value, index) => value === index).length;
+
+    if (fixedCount <= Math.max(1, Math.floor(count / 4))) {
+      break;
+    }
+  }
+
+  return solvedPositions.map((position, index) => {
+    const scrambled = solvedPositions[permutation[index]];
+    const jitter = count <= 6 ? 18 : 26;
+
+    return {
+      id: index,
+      x: Math.max(
+        untangleSettings.margin,
+        Math.min(untangleSettings.width - untangleSettings.margin, scrambled.x + (Math.random() - 0.5) * jitter),
+      ),
+      y: Math.max(
+        untangleSettings.margin,
+        Math.min(untangleSettings.height - untangleSettings.margin, scrambled.y + (Math.random() - 0.5) * jitter),
+      ),
+      solutionX: position.x,
+      solutionY: position.y,
+    };
+  });
+}
+
+function getUntangleIntersectionPoint(a, b, c, d) {
+  const denominator =
+    (a.x - b.x) * (c.y - d.y) -
+    (a.y - b.y) * (c.x - d.x);
+
+  if (Math.abs(denominator) < 0.0001) {
+    return {
+      x: (a.x + b.x + c.x + d.x) / 4,
+      y: (a.y + b.y + c.y + d.y) / 4,
+    };
+  }
+
+  const first = a.x * b.y - a.y * b.x;
+  const second = c.x * d.y - c.y * d.x;
+
+  return {
+    x: (first * (c.x - d.x) - (a.x - b.x) * second) / denominator,
+    y: (first * (c.y - d.y) - (a.y - b.y) * second) / denominator,
+  };
+}
+
+function getUntangleCrossingInfo(nodes = untangleNodes, edges = untangleEdges) {
+  const crossingEdges = new Set();
+  const points = [];
+  let count = 0;
+
+  for (let first = 0; first < edges.length; first += 1) {
+    for (let second = first + 1; second < edges.length; second += 1) {
+      const firstEdge = edges[first];
+      const secondEdge = edges[second];
+
+      if (!doUntangleEdgesCross(firstEdge, secondEdge, nodes)) {
+        continue;
+      }
+
+      count += 1;
+      crossingEdges.add(first);
+      crossingEdges.add(second);
+      points.push(
+        getUntangleIntersectionPoint(
+          nodes[firstEdge.a],
+          nodes[firstEdge.b],
+          nodes[secondEdge.a],
+          nodes[secondEdge.b],
+        ),
+      );
+    }
+  }
+
+  return { count, crossingEdges, points };
+}
+
+function createUntanglePuzzle(config) {
+  const solvedPositions = getUntangleSolvedPositions(config.nodes);
+  const edges = createUntangleEdges(config.nodes, config.targetEdges, solvedPositions);
+  const minimumCrossings = config.nodes <= 6 ? 1 : config.nodes <= 9 ? 3 : 5;
+  let bestNodes = [];
+  let bestCrossings = -1;
+
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const nodes = createUntangleScrambledNodes(solvedPositions);
+    const crossings = getUntangleCrossingInfo(nodes, edges).count;
+
+    if (crossings > bestCrossings) {
+      bestNodes = nodes;
+      bestCrossings = crossings;
+    }
+
+    if (crossings >= minimumCrossings) {
+      return { nodes, edges, crossings };
+    }
+  }
+
+  if (bestCrossings <= 0) {
+    bestNodes = forceUntangleCrossing(bestNodes, edges);
+    bestCrossings = getUntangleCrossingInfo(bestNodes, edges).count;
+  }
+
+  return {
+    nodes: bestNodes,
+    edges,
+    crossings: Math.max(0, bestCrossings),
+  };
+}
+
+function forceUntangleCrossing(nodes, edges) {
+  const result = nodes.map((node) => ({ ...node }));
+  const centerX = untangleSettings.width / 2;
+  const centerY = untangleSettings.height / 2;
+  const offsetX = untangleSettings.width * 0.24;
+  const offsetY = untangleSettings.height * 0.24;
+
+  for (let first = 0; first < edges.length; first += 1) {
+    for (let second = first + 1; second < edges.length; second += 1) {
+      const firstEdge = edges[first];
+      const secondEdge = edges[second];
+      const shared =
+        firstEdge.a === secondEdge.a ||
+        firstEdge.a === secondEdge.b ||
+        firstEdge.b === secondEdge.a ||
+        firstEdge.b === secondEdge.b;
+
+      if (shared) {
+        continue;
+      }
+
+      result[firstEdge.a] = { ...result[firstEdge.a], x: centerX - offsetX, y: centerY - offsetY };
+      result[firstEdge.b] = { ...result[firstEdge.b], x: centerX + offsetX, y: centerY + offsetY };
+      result[secondEdge.a] = { ...result[secondEdge.a], x: centerX + offsetX, y: centerY - offsetY };
+      result[secondEdge.b] = { ...result[secondEdge.b], x: centerX - offsetX, y: centerY + offsetY };
+      return result;
+    }
+  }
+
+  return result;
+}
+
+function startUntangleGame(options = {}) {
+  if (options.settlePrevious !== false) {
+    settleUntangleGame("restart");
+  }
+
+  const difficulty = getUntangleDifficulty();
+  const puzzle = createUntanglePuzzle(difficulty);
+  untangleGameId = createGameId();
+  untangleNodes = puzzle.nodes;
+  untangleEdges = puzzle.edges;
+  untangleCrossings = puzzle.crossings;
+  untangleInitialCrossings = puzzle.crossings;
+  untangleMovesUsed = 0;
+  untangleMovesLimit = difficulty.moves;
+  untangleStartedAt = 0;
+  untangleGameOver = false;
+  untangleWon = false;
+  untangleSettled = false;
+  untangleDragNode = null;
+  untangleDragPointerId = null;
+  untangleRestartButton.textContent = "重新开局";
+  untangleStatusText.textContent = getUntangleStatusText();
+  updateUntangleStatsDisplay();
+  renderUntangle();
+}
+
+function renderUntangle() {
+  const context = untangleContext;
+  const width = untangleSettings.width;
+  const height = untangleSettings.height;
+  const crossingInfo = getUntangleCrossingInfo();
+  untangleCrossings = crossingInfo.count;
+  updateUntangleStatsDisplay();
+
+  context.clearRect(0, 0, width, height);
+  drawUntangleBackground(context, width, height);
+  drawUntangleEdges(context, crossingInfo.crossingEdges);
+  drawUntangleCrossings(context, crossingInfo.points);
+  drawUntangleNodes(context);
+  drawUntangleOverlay(context);
+}
+
+function drawUntangleBackground(context, width, height) {
+  const gradient = context.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#f8faf6");
+  gradient.addColorStop(1, "#edf3f2");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+  context.strokeStyle = "rgba(24, 33, 42, 0.06)";
+  context.lineWidth = 1;
+
+  for (let x = 40; x < width; x += 40) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+
+  for (let y = 40; y < height; y += 40) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+    context.stroke();
+  }
+}
+
+function drawUntangleEdges(context, crossingEdges) {
+  untangleEdges.forEach((edge, index) => {
+    const start = untangleNodes[edge.a];
+    const end = untangleNodes[edge.b];
+    const isCrossing = crossingEdges.has(index);
+
+    context.strokeStyle = isCrossing ? "rgba(186, 63, 74, 0.86)" : "rgba(24, 124, 104, 0.52)";
+    context.lineWidth = isCrossing ? 3.4 : 2.2;
+    context.lineCap = "round";
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+  });
+}
+
+function drawUntangleCrossings(context, points) {
+  context.fillStyle = "rgba(186, 63, 74, 0.9)";
+
+  points.forEach((point) => {
+    context.beginPath();
+    context.arc(point.x, point.y, 4.5, 0, Math.PI * 2);
+    context.fill();
+  });
+}
+
+function drawUntangleNodes(context) {
+  untangleNodes.forEach((node) => {
+    const isDragging = untangleDragNode === node.id;
+    const radius = untangleSettings.nodeRadius + (isDragging ? 2 : 0);
+
+    context.save();
+    context.shadowColor = "rgba(24, 33, 42, 0.18)";
+    context.shadowBlur = isDragging ? 16 : 9;
+    context.shadowOffsetY = 4;
+    context.fillStyle = untangleWon ? "#dff4eb" : "#ffffff";
+    context.strokeStyle = isDragging ? "#d68631" : "#187c68";
+    context.lineWidth = isDragging ? 4 : 3;
+    context.beginPath();
+    context.arc(node.x, node.y, radius, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+    context.restore();
+
+    context.fillStyle = "#18212a";
+    context.font = "900 14px Inter, Arial, sans-serif";
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(String(node.id + 1), node.x, node.y + 0.5);
+  });
+}
+
+function drawUntangleOverlay(context) {
+  if (!untangleGameOver) {
+    return;
+  }
+
+  context.fillStyle = "rgba(24, 33, 42, 0.68)";
+  context.fillRect(untangleSettings.width / 2 - 170, untangleSettings.height / 2 - 58, 340, 116);
+  context.fillStyle = "#ffffff";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.font = "900 28px Inter, Arial, sans-serif";
+  context.fillText(untangleWon ? "解开了" : "步数用完", untangleSettings.width / 2, untangleSettings.height / 2 - 16);
+  context.font = "800 16px Inter, Arial, sans-serif";
+  context.fillText(
+    untangleWon
+      ? `用了 ${untangleMovesUsed} 步，剩余 ${Math.max(0, untangleMovesLimit - untangleMovesUsed)} 步`
+      : `还剩 ${untangleCrossings} 处交叉`,
+    untangleSettings.width / 2,
+    untangleSettings.height / 2 + 22,
+  );
+}
+
+function getUntangleCanvasPoint(event) {
+  const rect = untangleCanvas.getBoundingClientRect();
+
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * untangleSettings.width,
+    y: ((event.clientY - rect.top) / rect.height) * untangleSettings.height,
+  };
+}
+
+function getUntangleNodeAt(point) {
+  const pickRadius = untangleSettings.nodeRadius + 12;
+  let closest = null;
+  let closestDistance = Infinity;
+
+  untangleNodes.forEach((node) => {
+    const distance = Math.hypot(node.x - point.x, node.y - point.y);
+
+    if (distance <= pickRadius && distance < closestDistance) {
+      closest = node;
+      closestDistance = distance;
+    }
+  });
+
+  return closest;
+}
+
+function clampUntangleNode(point) {
+  const margin = untangleSettings.nodeRadius + 8;
+
+  return {
+    x: Math.max(margin, Math.min(untangleSettings.width - margin, point.x)),
+    y: Math.max(margin, Math.min(untangleSettings.height - margin, point.y)),
+  };
+}
+
+function handleUntanglePointerDown(event) {
+  if (currentGame !== GAME_UNTANGLE || untangleGameOver) {
+    return;
+  }
+
+  const point = getUntangleCanvasPoint(event);
+  const node = getUntangleNodeAt(point);
+
+  if (!node) {
+    return;
+  }
+
+  event.preventDefault();
+  untangleCanvas.setPointerCapture(event.pointerId);
+  untangleDragNode = node.id;
+  untangleDragPointerId = event.pointerId;
+  untangleDragStartX = node.x;
+  untangleDragStartY = node.y;
+  untangleDidMove = false;
+  untangleStartedAt = untangleStartedAt || Date.now();
+  renderUntangle();
+}
+
+function handleUntanglePointerMove(event) {
+  if (
+    currentGame !== GAME_UNTANGLE ||
+    untangleDragPointerId !== event.pointerId ||
+    untangleDragNode === null
+  ) {
+    return;
+  }
+
+  event.preventDefault();
+  const node = untangleNodes[untangleDragNode];
+  const point = clampUntangleNode(getUntangleCanvasPoint(event));
+  node.x = point.x;
+  node.y = point.y;
+  untangleDidMove =
+    untangleDidMove ||
+    Math.hypot(node.x - untangleDragStartX, node.y - untangleDragStartY) > 4;
+  renderUntangle();
+}
+
+function handleUntanglePointerUp(event) {
+  if (untangleDragPointerId !== event.pointerId || untangleDragNode === null) {
+    return;
+  }
+
+  event.preventDefault();
+  const moved = untangleDidMove;
+  untangleDragNode = null;
+  untangleDragPointerId = null;
+
+  if (moved && !untangleGameOver) {
+    untangleMovesUsed += 1;
+    checkUntangleGameState();
+  }
+
+  renderUntangle();
+}
+
+function handleUntanglePointerCancel(event) {
+  if (untangleDragPointerId !== event.pointerId) {
+    return;
+  }
+
+  untangleDragNode = null;
+  untangleDragPointerId = null;
+  renderUntangle();
+}
+
+function checkUntangleGameState() {
+  untangleCrossings = getUntangleCrossingInfo().count;
+
+  if (untangleCrossings === 0) {
+    finishUntangleGame(true);
+    return;
+  }
+
+  if (untangleMovesUsed >= untangleMovesLimit) {
+    finishUntangleGame(false);
+    return;
+  }
+
+  untangleStatusText.textContent = getUntangleStatusText();
+  updateUntangleStatsDisplay();
+}
+
+function finishUntangleGame(wonGame) {
+  untangleGameOver = true;
+  untangleWon = wonGame;
+  untangleRestartButton.textContent = "再来一局";
+
+  if (wonGame) {
+    const movesLeft = Math.max(0, untangleMovesLimit - untangleMovesUsed);
+
+    if (movesLeft > untangleBest) {
+      untangleBest = movesLeft;
+      localStorage.setItem(untangleBestKey, String(untangleBest));
+    }
+  }
+
+  untangleStatusText.textContent = wonGame ? text.untangleWin : text.untangleLose;
+  updateUntangleStatsDisplay();
+  settleUntangleGame(wonGame ? "won" : "lost");
+}
+
+async function settleUntangleGame(reason) {
+  if (!hasAccount() || untangleSettled || untangleMovesUsed === 0) {
+    return;
+  }
+
+  untangleSettled = true;
+  const seconds = untangleStartedAt ? Math.floor((Date.now() - untangleStartedAt) / 1000) : 0;
+
+  try {
+    const data = await apiRequest("/api/games/untangle/results", {
+      method: "POST",
+      body: JSON.stringify({
+        gameId: untangleGameId,
+        won: untangleWon,
+        difficulty: untangleDifficulty,
+        movesUsed: untangleMovesUsed,
+        movesLimit: untangleMovesLimit,
+        intersections: untangleCrossings,
+        initialIntersections: untangleInitialCrossings,
+        seconds,
+        nodes: untangleNodes.length,
+        edges: untangleEdges.length,
+        reason,
+      }),
+    });
+
+    renderAccount(data.profile);
+    await refreshLeaderboard(data.leaderboard);
+    untangleStatusText.textContent = untangleWon
+      ? `全部绳索已解开，获得 ${data.award.points} 积分。`
+      : `本局剩余 ${untangleCrossings} 处交叉，获得 ${data.award.points} 积分。`;
+  } catch (error) {
+    untangleStatusText.textContent = error.message;
+    untangleSettled = false;
+  }
 }
 
 function renderMinesweeperStats() {
@@ -3423,6 +4126,9 @@ mineDifficultySelect.addEventListener("change", () => {
 dodgeDifficultySelect.addEventListener("change", () => {
   setDodgeDifficulty(dodgeDifficultySelect.value);
 });
+untangleDifficultySelect.addEventListener("change", () => {
+  setUntangleDifficulty(untangleDifficultySelect.value);
+});
 flappyRestartButton.addEventListener("click", () => {
   if (flappyRunning) {
     resetFlappyGame();
@@ -3438,6 +4144,9 @@ dodgeRestartButton.addEventListener("click", () => {
   }
 
   startDodgeGame();
+});
+untangleRestartButton.addEventListener("click", () => {
+  startUntangleGame();
 });
 duelStartButton.addEventListener("click", requestDuelStart);
 duelServeButton.addEventListener("click", requestDuelServe);
@@ -3476,6 +4185,10 @@ dodgeMoveButtons.forEach((button) => {
   button.addEventListener("pointerleave", () => setDodgeMoveButton(button, false));
   button.addEventListener("pointercancel", () => setDodgeMoveButton(button, false));
 });
+untangleCanvas.addEventListener("pointerdown", handleUntanglePointerDown);
+untangleCanvas.addEventListener("pointermove", handleUntanglePointerMove);
+untangleCanvas.addEventListener("pointerup", handleUntanglePointerUp);
+untangleCanvas.addEventListener("pointercancel", handleUntanglePointerCancel);
 duelCanvas.addEventListener("pointerdown", (event) => {
   if (currentGame !== GAME_DUEL) {
     return;
@@ -3534,12 +4247,14 @@ window.addEventListener("resize", () => {
 setupBoardMarkup();
 mineDifficultySelect.value = mineDifficulty;
 dodgeDifficultySelect.value = dodgeDifficulty;
+untangleDifficultySelect.value = untangleDifficulty;
 setupMinesweeperMarkup();
 board = createEmptyBoard();
 mineBoard = createMineBoard();
 initializeMinesweeperBoard();
 resetFlappyGame();
 resetDodgeGame();
+startUntangleGame({ notify: false, settlePrevious: false });
 renderDuel();
 start2048Game({ notify: false, settlePrevious: false });
 loadSession();

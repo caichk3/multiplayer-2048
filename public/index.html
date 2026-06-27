@@ -173,6 +173,10 @@
             <span>灵敏最佳</span>
             <strong id="profile-dodge-best">0.0s</strong>
           </div>
+          <div>
+            <span>解绳胜场</span>
+            <strong id="profile-untangle-wins">0</strong>
+          </div>
           <button id="logout-button" class="ghost-button" type="button">退出</button>
         </div>
       </section>
@@ -183,7 +187,7 @@
             <p class="eyebrow">小游戏</p>
             <h2>游戏列表</h2>
           </div>
-          <span id="catalog-count">5 个可玩</span>
+          <span id="catalog-count">6 个可玩</span>
         </div>
 
         <div class="game-catalog">
@@ -206,6 +210,11 @@
             <span class="game-badge">可玩</span>
             <h3>灵敏闪避</h3>
             <p>操控飞机 · 随机弹幕 · 生存计时</p>
+          </button>
+          <button class="game-card" type="button" data-game="untangle">
+            <span class="game-badge">可玩</span>
+            <h3>绳结解谜</h3>
+            <p>拖动节点 · 解开交叉 · 有限步数</p>
           </button>
           <button class="game-card" type="button" data-game="paddleduel">
             <span class="game-badge">对战</span>
@@ -434,6 +443,54 @@
             <button class="dodge-touch-left" type="button" data-dodge-move="left" aria-label="左移">←</button>
             <button class="dodge-touch-down" type="button" data-dodge-move="down" aria-label="下移">↓</button>
             <button class="dodge-touch-right" type="button" data-dodge-move="right" aria-label="右移">→</button>
+          </div>
+        </section>
+
+        <section class="game-panel game-view is-hidden" id="game-untangle" aria-label="绳结解谜">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">Untangle</p>
+              <h2>绳结解谜</h2>
+            </div>
+
+            <div class="score-panel untangle-score-panel" aria-label="绳结解谜状态">
+              <div class="score-box">
+                <span>交叉</span>
+                <strong id="untangle-crossings">0</strong>
+              </div>
+              <div class="score-box">
+                <span>剩余步数</span>
+                <strong id="untangle-moves">0</strong>
+              </div>
+              <div class="score-box">
+                <span>最佳</span>
+                <strong id="untangle-best">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="untangle-status-text">拖动节点，让任意两条绳索不再交叉。</p>
+            <div class="untangle-controls">
+              <label for="untangle-difficulty">难度</label>
+              <select id="untangle-difficulty">
+                <option value="easy">入门</option>
+                <option value="normal">标准</option>
+                <option value="hard">困难</option>
+                <option value="expert">专家</option>
+              </select>
+              <button id="untangle-restart-button" type="button">重新开局</button>
+            </div>
+          </div>
+
+          <div class="untangle-stage-wrap">
+            <canvas
+              id="untangle-canvas"
+              class="untangle-canvas"
+              width="720"
+              height="520"
+              aria-label="绳结解谜游戏画面"
+            ></canvas>
           </div>
         </section>
 

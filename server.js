@@ -365,6 +365,99 @@ app.post("/api/games/dodge/results", requireAuth, (request, response) => {
   });
 });
 
+app.post("/api/games/untangle/results", requireAuth, (request, response) => {
+  const gameId = String(request.body?.gameId || "").trim();
+  const won = Boolean(request.body?.won);
+  const difficulty = normalizeUntangleDifficulty(request.body?.difficulty);
+  const movesUsed = clampInteger(request.body?.movesUsed, 0, 999999);
+  const movesLimit = clampInteger(request.body?.movesLimit, 1, 999999);
+  const intersections = clampInteger(request.body?.intersections, 0, 999999);
+  const initialIntersections = clampInteger(request.body?.initialIntersections, 0, 999999);
+  const seconds = clampInteger(request.body?.seconds, 0, 86400);
+  const nodes = clampInteger(request.body?.nodes, 0, 999999);
+  const edges = clampInteger(request.body?.edges, 0, 999999);
+  const user = request.user;
+
+  ensureUserShape(user);
+
+  if (!gameId) {
+    response.status(400).json({ ok: false, message: "缺少本局编号" });
+    return;
+  }
+
+  if (user.settledGames.includes(gameId)) {
+    response.json({
+      ok: true,
+      duplicate: true,
+      award: {
+        points: 0,
+        won,
+        difficulty,
+        movesUsed,
+        movesLimit,
+        intersections,
+        seconds,
+      },
+      profile: getPublicProfile(user),
+      leaderboard: getGlobalLeaderboard(),
+    });
+    return;
+  }
+
+  const award = calculateUntangleAward({
+    won,
+    difficulty,
+    movesUsed,
+    movesLimit,
+    intersections,
+    initialIntersections,
+    seconds,
+  });
+  const gameStats = user.stats.games.untangle;
+  const movesLeft = Math.max(0, movesLimit - movesUsed);
+
+  user.totalPoints += award.points;
+  user.stats.gamesPlayed += 1;
+  user.stats.lastPlayedAt = Date.now();
+  gameStats.plays += 1;
+  gameStats.wins += won ? 1 : 0;
+  gameStats.bestMovesLeft = won ? Math.max(gameStats.bestMovesLeft, movesLeft) : gameStats.bestMovesLeft;
+  gameStats.bestTime =
+    won && (gameStats.bestTime === 0 || seconds < gameStats.bestTime)
+      ? seconds
+      : gameStats.bestTime;
+  gameStats.bestDifficulty = won ? difficulty : gameStats.bestDifficulty;
+  gameStats.lastResult = won ? "won" : "lost";
+  gameStats.lastIntersections = intersections;
+  gameStats.lastPlayedAt = Date.now();
+  user.settledGames.push(gameId);
+  user.settledGames = user.settledGames.slice(-220);
+  user.recentResults.unshift({
+    game: "untangle",
+    won,
+    difficulty,
+    movesUsed,
+    movesLimit,
+    movesLeft,
+    intersections,
+    initialIntersections,
+    seconds,
+    nodes,
+    edges,
+    points: award.points,
+    playedAt: Date.now(),
+  });
+  user.recentResults = user.recentResults.slice(0, 12);
+  saveStore();
+
+  response.json({
+    ok: true,
+    award,
+    profile: getPublicProfile(user),
+    leaderboard: getGlobalLeaderboard(),
+  });
+});
+
 function saveStore() {
   persistence.saveStore(store).catch((error) => {
     console.error(`[db] Failed to save user store: ${error.message}`);
@@ -469,6 +562,16 @@ function createDefaultStats() {
         lastResult: "",
         lastPlayedAt: null,
       },
+      untangle: {
+        plays: 0,
+        wins: 0,
+        bestTime: 0,
+        bestMovesLeft: 0,
+        bestDifficulty: "",
+        lastResult: "",
+        lastIntersections: 0,
+        lastPlayedAt: null,
+      },
       sokoban: {
         plays: 0,
         wins: 0,
@@ -509,6 +612,10 @@ function ensureUserShape(user) {
     ...createDefaultStats().games.paddleduel,
     ...(user.stats.games.paddleduel || {}),
   };
+  user.stats.games.untangle = {
+    ...createDefaultStats().games.untangle,
+    ...(user.stats.games.untangle || {}),
+  };
   user.stats.games.sokoban = {
     ...createDefaultStats().games.sokoban,
     ...(user.stats.games.sokoban || {}),
@@ -530,6 +637,12 @@ function normalizePin(pin) {
   }
 
   return normalized;
+}
+
+function normalizeUntangleDifficulty(value) {
+  const normalized = String(value || "").trim();
+
+  return ["easy", "normal", "hard", "expert"].includes(normalized) ? normalized : "normal";
 }
 
 function findUserByName(name) {
@@ -617,6 +730,7 @@ function getPublicProfile(user) {
   const flappy = user.stats.games.flappy;
   const dodge = user.stats.games.dodge;
   const paddleduel = user.stats.games.paddleduel;
+  const untangle = user.stats.games.untangle;
 
   return {
     id: user.id,
@@ -663,6 +777,15 @@ function getPublicProfile(user) {
         goalsFor: paddleduel.goalsFor,
         goalsAgainst: paddleduel.goalsAgainst,
         lastResult: paddleduel.lastResult,
+      },
+      untangle: {
+        plays: untangle.plays,
+        wins: untangle.wins,
+        bestTime: untangle.bestTime,
+        bestMovesLeft: untangle.bestMovesLeft,
+        bestDifficulty: untangle.bestDifficulty,
+        lastResult: untangle.lastResult,
+        lastIntersections: untangle.lastIntersections,
       },
     },
     recentResults: user.recentResults.slice(0, 6),
@@ -738,6 +861,47 @@ function calculateDodgeAward({ seconds, grazes }) {
     points: Math.max(0, survivalPoints + grazePoints + milestoneBonus),
     seconds,
     grazes,
+  };
+}
+
+function calculateUntangleAward({
+  won,
+  difficulty,
+  movesUsed,
+  movesLimit,
+  intersections,
+  initialIntersections,
+  seconds,
+}) {
+  const difficultyBase = {
+    easy: 90,
+    normal: 170,
+    hard: 300,
+    expert: 460,
+  };
+  const basePoints = difficultyBase[difficulty] || difficultyBase.normal;
+  const movesLeft = Math.max(0, movesLimit - movesUsed);
+  const solvedRatio =
+    initialIntersections > 0
+      ? Math.max(0, Math.min(1, (initialIntersections - intersections) / initialIntersections))
+      : won
+        ? 1
+        : 0;
+  const progressPoints = Math.floor(basePoints * 0.36 * solvedRatio);
+  const winBonus = won ? basePoints : 0;
+  const moveBonus = won ? movesLeft * 9 : 0;
+  const speedBonus = won ? Math.max(0, 160 - seconds) : 0;
+
+  return {
+    points: Math.max(0, progressPoints + winBonus + moveBonus + speedBonus),
+    won,
+    difficulty,
+    movesUsed,
+    movesLimit,
+    movesLeft,
+    intersections,
+    initialIntersections,
+    seconds,
   };
 }
 
