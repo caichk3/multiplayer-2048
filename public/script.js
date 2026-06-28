@@ -138,6 +138,10 @@ const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
   {
+    title: "修复绳结手机端横向滑动",
+    body: "手机打开绳结解谜时页面会锁住水平方向，状态栏和竖版画布不再把网页撑出屏幕。",
+  },
+  {
     title: "合成水果建模升级",
     body: "水果从字母圆球改为专属图案，加入葡萄串、樱桃果柄、橘子瓣、猕猴桃籽、菠萝网纹和西瓜条纹等细节。",
   },

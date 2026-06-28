@@ -19,9 +19,16 @@
   box-sizing: border-box;
 }
 
+html {
+  width: 100%;
+  overflow-x: hidden;
+}
+
 body {
+  width: 100%;
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden;
   background:
     linear-gradient(135deg, rgba(24, 124, 104, 0.12), rgba(214, 134, 49, 0.08)),
     #f6f7f4;
@@ -69,8 +76,10 @@ button:active {
 
 .app-shell {
   width: min(1180px, calc(100vw - 32px));
+  max-width: 100%;
   margin: 0 auto;
   padding: 28px 0 34px;
+  overflow-x: clip;
 }
 
 .login-view {
@@ -583,6 +592,7 @@ h2 {
 .game-panel,
 .info-panel,
 .leaderboard-panel {
+  min-width: 0;
   padding: 18px;
 }
 
@@ -732,7 +742,7 @@ h2 {
 }
 
 .score-box {
-  min-width: 82px;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1787,7 +1797,9 @@ h2 {
   display: grid;
   place-items: center;
   width: 100%;
+  max-width: 100%;
   padding: 6px 0;
+  overflow-x: hidden;
 }
 
 .untangle-canvas {
@@ -1963,6 +1975,11 @@ h2 {
 
   .score-panel {
     width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .score-box {
+    padding-inline: 8px;
   }
 
   .mine-controls,
@@ -2018,7 +2035,8 @@ h2 {
   }
 
   .untangle-canvas {
-    width: min(100%, 430px);
+    width: 100%;
+    max-width: min(100%, 430px);
     height: auto;
     aspect-ratio: 26 / 41;
     box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
