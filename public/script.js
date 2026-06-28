@@ -84,10 +84,12 @@ const untangleCanvas = document.querySelector("#untangle-canvas");
 const untangleContext = untangleCanvas.getContext("2d");
 const untangleStatusText = document.querySelector("#untangle-status-text");
 const untangleRestartButton = document.querySelector("#untangle-restart-button");
+const untangleUndoButton = document.querySelector("#untangle-undo-button");
 const untangleDifficultySelect = document.querySelector("#untangle-difficulty");
 const untangleCrossingsElement = document.querySelector("#untangle-crossings");
 const untangleMovesElement = document.querySelector("#untangle-moves");
 const untangleBestElement = document.querySelector("#untangle-best");
+const untangleUndosElement = document.querySelector("#untangle-undos");
 const duelCanvas = document.querySelector("#duel-canvas");
 const duelContext = duelCanvas.getContext("2d");
 const duelScoreElement = document.querySelector("#duel-score");
@@ -120,6 +122,10 @@ const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)"
 const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const maxAnnouncements = 10;
 const announcements = [
+  {
+    title: "绳结解谜新增撤回机会",
+    body: "每局按难度提供 3、5、7、9 次撤回机会，拖错节点可以回退上一步并返还步数。",
+  },
   {
     title: "绳结解谜手机端改为竖屏大画布",
     body: "手机浏览器会使用竖向题面和更高的操作区域，节点坐标也会同步切换到竖版布局，方便拖动。",
@@ -270,6 +276,7 @@ const untangleDifficulties = {
     minMoves: 12,
     maxMoves: 22,
     minCrossings: 12,
+    undoLimit: 3,
   },
   normal: {
     label: "标准",
@@ -279,6 +286,7 @@ const untangleDifficulties = {
     minMoves: 24,
     maxMoves: 46,
     minCrossings: 45,
+    undoLimit: 5,
   },
   hard: {
     label: "困难",
@@ -288,6 +296,7 @@ const untangleDifficulties = {
     minMoves: 36,
     maxMoves: 70,
     minCrossings: 95,
+    undoLimit: 7,
   },
   expert: {
     label: "专家",
@@ -297,6 +306,7 @@ const untangleDifficulties = {
     minMoves: 58,
     maxMoves: 112,
     minCrossings: 230,
+    undoLimit: 9,
   },
 };
 const text = {
@@ -408,6 +418,10 @@ let untangleCrossings = 0;
 let untangleInitialCrossings = 0;
 let untangleMovesUsed = 0;
 let untangleMovesLimit = 0;
+let untangleUndoLimit = 0;
+let untangleUndosLeft = 0;
+let untangleHistory = [];
+let untangleDragSnapshot = null;
 let untangleStartedAt = 0;
 let untangleGameOver = false;
 let untangleWon = false;
@@ -2587,6 +2601,44 @@ function updateUntangleStatsDisplay() {
   untangleCrossingsElement.textContent = String(untangleCrossings);
   untangleMovesElement.textContent = String(Math.max(0, untangleMovesLimit - untangleMovesUsed));
   untangleBestElement.textContent = String(untangleBest);
+  untangleUndosElement.textContent = String(Math.max(0, untangleUndosLeft));
+  untangleUndoButton.disabled =
+    untangleGameOver ||
+    untangleUndosLeft <= 0 ||
+    untangleHistory.length === 0;
+}
+
+function cloneUntangleNodes(nodes = untangleNodes) {
+  return nodes.map((node) => ({ ...node }));
+}
+
+function createUntangleSnapshot() {
+  return {
+    nodes: cloneUntangleNodes(),
+    movesUsed: untangleMovesUsed,
+    crossings: untangleCrossings,
+    startedAt: untangleStartedAt,
+  };
+}
+
+function restoreUntangleSnapshot(snapshot) {
+  untangleNodes = cloneUntangleNodes(snapshot.nodes);
+  untangleMovesUsed = snapshot.movesUsed;
+  untangleCrossings = snapshot.crossings;
+  untangleStartedAt = snapshot.startedAt;
+}
+
+function undoUntangleMove() {
+  if (untangleGameOver || untangleUndosLeft <= 0 || untangleHistory.length === 0) {
+    return;
+  }
+
+  const snapshot = untangleHistory.pop();
+  restoreUntangleSnapshot(snapshot);
+  untangleUndosLeft -= 1;
+  untangleStatusText.textContent = `${getUntangleDifficulty().label}难度：已撤回一步，剩余 ${untangleUndosLeft} 次撤回。`;
+  updateUntangleStatsDisplay();
+  renderUntangle();
 }
 
 function getUntangleSolvedPositions(count) {
@@ -2950,6 +3002,10 @@ function startUntangleGame(options = {}) {
   untangleInitialCrossings = puzzle.crossings;
   untangleMovesUsed = 0;
   untangleMovesLimit = calculateUntangleMoveLimit(difficulty, puzzle);
+  untangleUndoLimit = difficulty.undoLimit;
+  untangleUndosLeft = difficulty.undoLimit;
+  untangleHistory = [];
+  untangleDragSnapshot = null;
   untangleStartedAt = 0;
   untangleGameOver = false;
   untangleWon = false;
@@ -3136,6 +3192,7 @@ function handleUntanglePointerDown(event) {
   untangleDragStartX = node.x;
   untangleDragStartY = node.y;
   untangleDidMove = false;
+  untangleDragSnapshot = createUntangleSnapshot();
   untangleStartedAt = untangleStartedAt || Date.now();
   renderUntangle();
 }
@@ -3171,10 +3228,16 @@ function handleUntanglePointerUp(event) {
   untangleDragPointerId = null;
 
   if (moved && !untangleGameOver) {
+    if (untangleDragSnapshot) {
+      untangleHistory.push(untangleDragSnapshot);
+      untangleHistory = untangleHistory.slice(-Math.max(1, untangleUndoLimit));
+    }
+
     untangleMovesUsed += 1;
     checkUntangleGameState();
   }
 
+  untangleDragSnapshot = null;
   renderUntangle();
 }
 
@@ -3185,6 +3248,7 @@ function handleUntanglePointerCancel(event) {
 
   untangleDragNode = null;
   untangleDragPointerId = null;
+  untangleDragSnapshot = null;
   renderUntangle();
 }
 
@@ -4382,6 +4446,7 @@ dodgeRestartButton.addEventListener("click", () => {
 untangleRestartButton.addEventListener("click", () => {
   startUntangleGame();
 });
+untangleUndoButton.addEventListener("click", undoUntangleMove);
 duelStartButton.addEventListener("click", requestDuelStart);
 duelServeButton.addEventListener("click", requestDuelServe);
 messageButton.addEventListener("click", hideMessageAndContinue);

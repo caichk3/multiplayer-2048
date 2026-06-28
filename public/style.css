@@ -784,6 +784,7 @@ h2 {
 #duel-start-button,
 #duel-serve-button,
 #mine-restart-button,
+#untangle-undo-button,
 #untangle-restart-button {
   padding: 0 16px;
   background: var(--accent);
@@ -796,8 +797,15 @@ h2 {
 #duel-start-button:hover,
 #duel-serve-button:hover,
 #mine-restart-button:hover,
+#untangle-undo-button:hover,
 #untangle-restart-button:hover {
   background: var(--accent-dark);
+}
+
+#untangle-undo-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  transform: none;
 }
 
 #restart-button {
@@ -1724,7 +1732,7 @@ h2 {
 }
 
 .untangle-score-panel {
-  grid-template-columns: repeat(3, minmax(82px, 1fr));
+  grid-template-columns: repeat(4, minmax(82px, 1fr));
 }
 
 .untangle-stage-wrap {
