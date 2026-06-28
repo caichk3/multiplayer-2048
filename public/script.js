@@ -134,6 +134,10 @@ const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)
 const maxAnnouncements = 10;
 const announcements = [
   {
+    title: "修复合成水果碰撞不合成问题",
+    body: "相同水果现在正常接触就会合成，并加入短暂出生保护，减少刚释放时的误合成。",
+  },
+  {
     title: "新增合成水果小游戏",
     body: "加入轻量版合成水果玩法，支持手机竖屏、圆形碰撞合成、警戒线失败和账号积分结算。",
   },
@@ -2328,8 +2332,10 @@ function mergeFruitPairs() {
       }
 
       const distance = Math.hypot(b.x - a.x, b.y - a.y);
+      const contactDistance = a.radius + b.radius + 3;
+      const bothReady = Date.now() - a.bornAt > 180 && Date.now() - b.bornAt > 180;
 
-      if (distance > (a.radius + b.radius) * 0.82) {
+      if (!bothReady || distance > contactDistance) {
         continue;
       }
 
