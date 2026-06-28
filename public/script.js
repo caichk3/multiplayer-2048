@@ -138,6 +138,10 @@ const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
   {
+    title: "合成水果建模升级",
+    body: "水果从字母圆球改为专属图案，加入葡萄串、樱桃果柄、橘子瓣、猕猴桃籽、菠萝网纹和西瓜条纹等细节。",
+  },
+  {
     title: "修复合成水果碰撞不合成问题",
     body: "相同水果现在正常接触就会合成，并加入短暂出生保护，减少刚释放时的误合成。",
   },
@@ -463,6 +467,7 @@ let fruitLastFrameTime = 0;
 let fruitLastDropAt = 0;
 let fruitWarningStartedAt = 0;
 let fruitPointerActive = false;
+const fruitSpriteCache = new Map();
 let dodgeGameId = createGameId();
 let dodgePlane = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
 let dodgeTarget = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
@@ -2573,33 +2578,553 @@ function drawFruitBackground(context) {
 }
 
 function drawFruitBody(context, fruit) {
+  const sprite = getFruitSprite(fruit.level, fruit.radius);
+
+  context.drawImage(sprite, fruit.x - sprite.width / 2, fruit.y - sprite.height / 2);
+}
+
+function getFruitSprite(level, radius) {
+  const safeRadius = Math.max(8, Math.round(radius));
+  const key = `${level}-${safeRadius}`;
+  const cached = fruitSpriteCache.get(key);
+
+  if (cached) {
+    return cached;
+  }
+
+  const padding = Math.ceil(Math.max(10, safeRadius * 0.18));
+  const size = Math.ceil(safeRadius * 2 + padding * 2);
+  const sprite = document.createElement("canvas");
+  const spriteContext = sprite.getContext("2d");
+
+  sprite.width = size;
+  sprite.height = size;
+  drawFruitSprite(spriteContext, {
+    level,
+    x: size / 2,
+    y: size / 2,
+    radius: safeRadius,
+  });
+  fruitSpriteCache.set(key, sprite);
+
+  return sprite;
+}
+
+function drawFruitSprite(context, fruit) {
   const type = fruitTypes[fruit.level];
-  const glow = context.createRadialGradient(
-    fruit.x - fruit.radius * 0.32,
-    fruit.y - fruit.radius * 0.34,
-    fruit.radius * 0.1,
-    fruit.x,
-    fruit.y,
-    fruit.radius,
+
+  context.save();
+  context.lineCap = "round";
+  context.lineJoin = "round";
+
+  switch (type.name) {
+    case "葡萄":
+      drawGrapeSprite(context, fruit, type);
+      break;
+    case "樱桃":
+      drawCherrySprite(context, fruit, type);
+      break;
+    case "橘子":
+      drawOrangeSprite(context, fruit, type);
+      break;
+    case "柠檬":
+      drawLemonSprite(context, fruit, type);
+      break;
+    case "猕猴桃":
+      drawKiwiSprite(context, fruit, type);
+      break;
+    case "苹果":
+      drawAppleSprite(context, fruit, type);
+      break;
+    case "梨":
+      drawPearSprite(context, fruit, type);
+      break;
+    case "桃子":
+      drawPeachSprite(context, fruit, type);
+      break;
+    case "菠萝":
+      drawPineappleSprite(context, fruit, type);
+      break;
+    case "哈密瓜":
+      drawCantaloupeSprite(context, fruit, type);
+      break;
+    case "西瓜":
+      drawWatermelonSprite(context, fruit, type);
+      break;
+    default:
+      drawRoundFruitBase(context, fruit, type.color);
+      drawFruitGloss(context, fruit.x, fruit.y, fruit.radius);
+      break;
+  }
+
+  context.restore();
+}
+
+function drawRoundFruitBase(context, fruit, color, options = {}) {
+  const { x, y, radius } = fruit;
+  const gradient = context.createRadialGradient(
+    x - radius * 0.34,
+    y - radius * 0.38,
+    radius * 0.06,
+    x,
+    y,
+    radius,
   );
-  glow.addColorStop(0, "#ffffff");
-  glow.addColorStop(0.18, type.color);
-  glow.addColorStop(1, shadeColor(type.color, -24));
-  context.fillStyle = glow;
+
+  gradient.addColorStop(0, options.light || "#fffdf4");
+  gradient.addColorStop(0.2, shadeColor(color, 18));
+  gradient.addColorStop(0.74, color);
+  gradient.addColorStop(1, options.dark || shadeColor(color, -24));
+  context.fillStyle = gradient;
   context.beginPath();
-  context.arc(fruit.x, fruit.y, fruit.radius, 0, Math.PI * 2);
+  context.arc(x, y, radius * (options.scale || 1), 0, Math.PI * 2);
   context.fill();
-  context.strokeStyle = "rgba(24, 33, 42, 0.16)";
-  context.lineWidth = Math.max(1.2, fruit.radius * 0.04);
+  drawFruitOutline(context, x, y, radius * (options.scale || 1));
+}
+
+function drawFruitOutline(context, x, y, radius, alpha = 0.18) {
+  context.strokeStyle = `rgba(24, 33, 42, ${alpha})`;
+  context.lineWidth = Math.max(1, radius * 0.045);
+  context.stroke();
+}
+
+function drawFruitGloss(context, x, y, radius, alpha = 0.34) {
+  context.save();
+  context.globalAlpha = alpha;
+  context.fillStyle = "#ffffff";
+  context.beginPath();
+  context.ellipse(
+    x - radius * 0.34,
+    y - radius * 0.36,
+    radius * 0.22,
+    radius * 0.11,
+    -0.6,
+    0,
+    Math.PI * 2,
+  );
+  context.fill();
+  context.restore();
+}
+
+function drawLeaf(context, x, y, width, height, rotation, color = "#3e9b57") {
+  context.save();
+  context.translate(x, y);
+  context.rotate(rotation);
+  context.fillStyle = color;
+  context.strokeStyle = "rgba(24, 93, 54, 0.28)";
+  context.lineWidth = Math.max(1, width * 0.08);
+  context.beginPath();
+  context.moveTo(-width * 0.48, 0);
+  context.bezierCurveTo(-width * 0.2, -height * 0.56, width * 0.4, -height * 0.48, width * 0.55, 0);
+  context.bezierCurveTo(width * 0.25, height * 0.38, -width * 0.24, height * 0.32, -width * 0.48, 0);
+  context.closePath();
+  context.fill();
+  context.stroke();
+  context.restore();
+}
+
+function drawStem(context, x, y, radius, options = {}) {
+  context.save();
+  context.strokeStyle = options.color || "#7a4d2d";
+  context.lineWidth = Math.max(1.2, radius * (options.width ?? 0.08));
+  context.beginPath();
+  context.moveTo(x + radius * (options.startX ?? -0.02), y - radius * (options.startY ?? 0.62));
+  context.bezierCurveTo(
+    x + radius * (options.cp1x ?? -0.08),
+    y - radius * (options.cp1y ?? 0.86),
+    x + radius * (options.cp2x ?? 0.12),
+    y - radius * (options.cp2y ?? 0.92),
+    x + radius * (options.endX ?? 0.22),
+    y - radius * (options.endY ?? 1.02),
+  );
+  context.stroke();
+  context.restore();
+}
+
+function drawGrapeSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+  const grapes = [
+    [-0.24, -0.2, 0.32],
+    [0.08, -0.28, 0.34],
+    [0.34, -0.05, 0.3],
+    [-0.38, 0.06, 0.3],
+    [-0.1, 0.14, 0.33],
+    [0.22, 0.26, 0.29],
+  ];
+
+  drawStem(context, x, y, radius, {
+    startX: -0.02,
+    startY: 0.44,
+    endX: 0.06,
+    endY: 0.96,
+    width: 0.07,
+  });
+  drawLeaf(context, x + radius * 0.18, y - radius * 0.7, radius * 0.5, radius * 0.28, -0.28);
+
+  grapes.forEach(([offsetX, offsetY, scale], index) => {
+    const grapeRadius = radius * scale;
+    const grapeX = x + radius * offsetX;
+    const grapeY = y + radius * offsetY;
+    const gradient = context.createRadialGradient(
+      grapeX - grapeRadius * 0.28,
+      grapeY - grapeRadius * 0.35,
+      grapeRadius * 0.05,
+      grapeX,
+      grapeY,
+      grapeRadius,
+    );
+
+    gradient.addColorStop(0, "#e7d7ff");
+    gradient.addColorStop(0.25, index % 2 ? "#a87bea" : "#915fd8");
+    gradient.addColorStop(1, shadeColor(type.color, -28));
+    context.fillStyle = gradient;
+    context.beginPath();
+    context.arc(grapeX, grapeY, grapeRadius, 0, Math.PI * 2);
+    context.fill();
+    drawFruitOutline(context, grapeX, grapeY, grapeRadius, 0.12);
+  });
+}
+
+function drawCherrySprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+
+  drawStem(context, x, y, radius, {
+    startX: 0,
+    startY: 0.5,
+    cp1x: -0.1,
+    cp1y: 0.86,
+    cp2x: 0.08,
+    cp2y: 1,
+    endX: 0.28,
+    endY: 1.16,
+    width: 0.07,
+  });
+  drawLeaf(context, x + radius * 0.25, y - radius * 0.8, radius * 0.52, radius * 0.28, 0.08);
+  drawRoundFruitBase(context, fruit, type.color, { dark: "#b8203b" });
+
+  context.strokeStyle = "rgba(126, 24, 46, 0.22)";
+  context.lineWidth = Math.max(1, radius * 0.06);
+  context.beginPath();
+  context.arc(x + radius * 0.05, y + radius * 0.02, radius * 0.55, 0.58, 2.35);
+  context.stroke();
+  drawFruitGloss(context, x, y, radius, 0.42);
+}
+
+function drawOrangeSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+
+  drawRoundFruitBase(context, fruit, type.color, { dark: "#cf6d1f" });
+  context.save();
+  context.beginPath();
+  context.arc(x, y, radius * 0.9, 0, Math.PI * 2);
+  context.clip();
+  context.strokeStyle = "rgba(154, 83, 25, 0.24)";
+  context.lineWidth = Math.max(1, radius * 0.035);
+
+  for (let index = 0; index < 10; index += 1) {
+    const angle = (Math.PI * 2 * index) / 10;
+    context.beginPath();
+    context.moveTo(x + Math.cos(angle) * radius * 0.16, y + Math.sin(angle) * radius * 0.16);
+    context.lineTo(x + Math.cos(angle) * radius * 0.82, y + Math.sin(angle) * radius * 0.82);
+    context.stroke();
+  }
+
+  context.fillStyle = "rgba(255, 218, 132, 0.55)";
+  for (let index = 0; index < 12; index += 1) {
+    const angle = (Math.PI * 2 * index) / 12 + 0.18;
+    context.beginPath();
+    context.arc(
+      x + Math.cos(angle) * radius * 0.52,
+      y + Math.sin(angle) * radius * 0.52,
+      Math.max(1.1, radius * 0.035),
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
+  }
+  context.restore();
+  drawLeaf(context, x + radius * 0.22, y - radius * 0.75, radius * 0.42, radius * 0.2, -0.1);
+  drawFruitGloss(context, x, y, radius, 0.25);
+}
+
+function drawLemonSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+  const gradient = context.createRadialGradient(
+    x - radius * 0.35,
+    y - radius * 0.36,
+    radius * 0.08,
+    x,
+    y,
+    radius,
+  );
+
+  gradient.addColorStop(0, "#fffbe0");
+  gradient.addColorStop(0.28, "#ffe66c");
+  gradient.addColorStop(1, shadeColor(type.color, -18));
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.moveTo(x - radius * 0.95, y);
+  context.bezierCurveTo(x - radius * 0.74, y - radius * 0.6, x - radius * 0.18, y - radius * 0.82, x + radius * 0.18, y - radius * 0.68);
+  context.bezierCurveTo(x + radius * 0.64, y - radius * 0.5, x + radius * 0.9, y - radius * 0.16, x + radius * 0.98, y);
+  context.bezierCurveTo(x + radius * 0.72, y + radius * 0.58, x + radius * 0.2, y + radius * 0.82, x - radius * 0.16, y + radius * 0.68);
+  context.bezierCurveTo(x - radius * 0.62, y + radius * 0.48, x - radius * 0.88, y + radius * 0.16, x - radius * 0.95, y);
+  context.closePath();
+  context.fill();
+  context.strokeStyle = "rgba(139, 116, 21, 0.2)";
+  context.lineWidth = Math.max(1, radius * 0.045);
   context.stroke();
 
-  if (fruit.radius >= 18) {
-    context.fillStyle = "rgba(255, 255, 255, 0.86)";
-    context.font = `900 ${Math.max(10, Math.min(22, fruit.radius * 0.42))}px Inter, Arial, sans-serif`;
-    context.textAlign = "center";
-    context.textBaseline = "middle";
-    context.fillText(type.mark, fruit.x, fruit.y + 0.5);
+  context.strokeStyle = "rgba(151, 126, 28, 0.22)";
+  context.lineWidth = Math.max(1, radius * 0.035);
+  context.beginPath();
+  context.moveTo(x - radius * 0.48, y - radius * 0.28);
+  context.quadraticCurveTo(x, y - radius * 0.06, x + radius * 0.48, y - radius * 0.24);
+  context.stroke();
+  drawFruitGloss(context, x, y, radius, 0.32);
+}
+
+function drawKiwiSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+
+  drawRoundFruitBase(context, fruit, "#8b6a3e", { dark: "#5b4329", light: "#d7bd80" });
+  context.fillStyle = type.color;
+  context.beginPath();
+  context.arc(x, y, radius * 0.78, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = "#f7f2d6";
+  context.beginPath();
+  context.arc(x, y, radius * 0.22, 0, Math.PI * 2);
+  context.fill();
+
+  context.fillStyle = "rgba(24, 33, 42, 0.78)";
+  for (let index = 0; index < 18; index += 1) {
+    const angle = (Math.PI * 2 * index) / 18;
+    context.beginPath();
+    context.ellipse(
+      x + Math.cos(angle) * radius * 0.48,
+      y + Math.sin(angle) * radius * 0.48,
+      Math.max(1.1, radius * 0.035),
+      Math.max(0.8, radius * 0.018),
+      angle,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
   }
+  drawFruitGloss(context, x, y, radius, 0.24);
+}
+
+function drawAppleSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+  const gradient = context.createRadialGradient(
+    x - radius * 0.36,
+    y - radius * 0.38,
+    radius * 0.06,
+    x,
+    y,
+    radius,
+  );
+
+  drawStem(context, x, y, radius, { startX: 0.02, startY: 0.56, endX: 0.14, endY: 1.03 });
+  drawLeaf(context, x + radius * 0.22, y - radius * 0.84, radius * 0.52, radius * 0.28, 0.08);
+  gradient.addColorStop(0, "#ffd6c8");
+  gradient.addColorStop(0.24, "#f56555");
+  gradient.addColorStop(1, shadeColor(type.color, -28));
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.moveTo(x, y - radius * 0.62);
+  context.bezierCurveTo(x - radius * 0.26, y - radius * 0.86, x - radius * 0.82, y - radius * 0.72, x - radius * 0.86, y - radius * 0.16);
+  context.bezierCurveTo(x - radius * 0.92, y + radius * 0.48, x - radius * 0.44, y + radius * 0.9, x - radius * 0.05, y + radius * 0.75);
+  context.bezierCurveTo(x + radius * 0.18, y + radius * 0.92, x + radius * 0.86, y + radius * 0.5, x + radius * 0.84, y - radius * 0.12);
+  context.bezierCurveTo(x + radius * 0.82, y - radius * 0.7, x + radius * 0.24, y - radius * 0.86, x, y - radius * 0.62);
+  context.closePath();
+  context.fill();
+  context.strokeStyle = "rgba(103, 37, 36, 0.18)";
+  context.lineWidth = Math.max(1, radius * 0.045);
+  context.stroke();
+  drawFruitGloss(context, x, y, radius, 0.34);
+}
+
+function drawPearSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+  const gradient = context.createRadialGradient(
+    x - radius * 0.28,
+    y - radius * 0.36,
+    radius * 0.08,
+    x,
+    y,
+    radius,
+  );
+
+  drawStem(context, x, y, radius, { startX: 0, startY: 0.68, endX: 0.16, endY: 1.05 });
+  drawLeaf(context, x + radius * 0.22, y - radius * 0.86, radius * 0.48, radius * 0.25, 0.16);
+  gradient.addColorStop(0, "#f5f0a6");
+  gradient.addColorStop(0.28, type.color);
+  gradient.addColorStop(1, "#88ad36");
+  context.fillStyle = gradient;
+  context.beginPath();
+  context.moveTo(x, y - radius * 0.78);
+  context.bezierCurveTo(x - radius * 0.36, y - radius * 0.78, x - radius * 0.58, y - radius * 0.38, x - radius * 0.48, y - radius * 0.08);
+  context.bezierCurveTo(x - radius * 0.86, y + radius * 0.12, x - radius * 0.76, y + radius * 0.84, x, y + radius * 0.86);
+  context.bezierCurveTo(x + radius * 0.78, y + radius * 0.84, x + radius * 0.86, y + radius * 0.14, x + radius * 0.48, y - radius * 0.08);
+  context.bezierCurveTo(x + radius * 0.58, y - radius * 0.4, x + radius * 0.34, y - radius * 0.78, x, y - radius * 0.78);
+  context.closePath();
+  context.fill();
+  context.strokeStyle = "rgba(80, 104, 32, 0.18)";
+  context.lineWidth = Math.max(1, radius * 0.045);
+  context.stroke();
+
+  context.fillStyle = "rgba(111, 96, 31, 0.24)";
+  for (let index = 0; index < 9; index += 1) {
+    const offsetX = Math.cos(index * 2.18) * radius * (0.18 + (index % 3) * 0.12);
+    const offsetY = Math.sin(index * 1.73) * radius * 0.42 + radius * 0.18;
+    context.beginPath();
+    context.arc(x + offsetX, y + offsetY, Math.max(1, radius * 0.018), 0, Math.PI * 2);
+    context.fill();
+  }
+  drawFruitGloss(context, x, y, radius, 0.24);
+}
+
+function drawPeachSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+
+  drawLeaf(context, x + radius * 0.26, y - radius * 0.78, radius * 0.54, radius * 0.28, 0.02);
+  drawRoundFruitBase(context, fruit, type.color, { dark: "#d76b66", light: "#ffe0b5" });
+  context.strokeStyle = "rgba(143, 61, 70, 0.32)";
+  context.lineWidth = Math.max(1.2, radius * 0.05);
+  context.beginPath();
+  context.moveTo(x + radius * 0.12, y - radius * 0.72);
+  context.bezierCurveTo(x - radius * 0.06, y - radius * 0.26, x + radius * 0.18, y + radius * 0.28, x - radius * 0.08, y + radius * 0.72);
+  context.stroke();
+  drawFruitGloss(context, x, y, radius, 0.3);
+}
+
+function drawPineappleSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+
+  drawLeaf(context, x - radius * 0.18, y - radius * 0.58, radius * 0.34, radius * 0.46, -0.75, "#338a55");
+  drawLeaf(context, x + radius * 0.02, y - radius * 0.68, radius * 0.36, radius * 0.5, -0.1, "#3f9c58");
+  drawLeaf(context, x + radius * 0.22, y - radius * 0.58, radius * 0.34, radius * 0.46, 0.65, "#2f7f4a");
+
+  const gradient = context.createLinearGradient(x - radius * 0.6, y - radius * 0.7, x + radius * 0.62, y + radius * 0.78);
+  gradient.addColorStop(0, "#f5d870");
+  gradient.addColorStop(0.5, type.color);
+  gradient.addColorStop(1, "#a97924");
+
+  context.save();
+  context.beginPath();
+  context.ellipse(x, y + radius * 0.1, radius * 0.68, radius * 0.78, 0, 0, Math.PI * 2);
+  context.fillStyle = gradient;
+  context.fill();
+  context.clip();
+
+  context.strokeStyle = "rgba(112, 78, 22, 0.28)";
+  context.lineWidth = Math.max(1, radius * 0.035);
+  for (let offset = -radius * 1.2; offset <= radius * 1.2; offset += radius * 0.24) {
+    context.beginPath();
+    context.moveTo(x - radius + offset, y - radius * 0.7);
+    context.lineTo(x + radius + offset, y + radius * 0.92);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(x + radius - offset, y - radius * 0.7);
+    context.lineTo(x - radius - offset, y + radius * 0.92);
+    context.stroke();
+  }
+  context.restore();
+
+  context.strokeStyle = "rgba(82, 55, 18, 0.2)";
+  context.lineWidth = Math.max(1.2, radius * 0.045);
+  context.beginPath();
+  context.ellipse(x, y + radius * 0.1, radius * 0.68, radius * 0.78, 0, 0, Math.PI * 2);
+  context.stroke();
+  drawFruitGloss(context, x, y, radius, 0.2);
+}
+
+function drawCantaloupeSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+
+  drawRoundFruitBase(context, fruit, type.color, { dark: "#5ea956", light: "#e6f5a4" });
+  context.save();
+  context.beginPath();
+  context.arc(x, y, radius * 0.92, 0, Math.PI * 2);
+  context.clip();
+  context.strokeStyle = "rgba(236, 244, 191, 0.7)";
+  context.lineWidth = Math.max(1, radius * 0.035);
+
+  for (let offset = -radius; offset <= radius; offset += radius * 0.24) {
+    context.beginPath();
+    context.moveTo(x - radius, y + offset);
+    context.lineTo(x + radius, y + offset + radius * 0.42);
+    context.stroke();
+
+    context.beginPath();
+    context.moveTo(x + radius, y + offset);
+    context.lineTo(x - radius, y + offset + radius * 0.42);
+    context.stroke();
+  }
+
+  context.strokeStyle = "rgba(66, 128, 62, 0.28)";
+  context.lineWidth = Math.max(1.2, radius * 0.06);
+  for (let index = -1; index <= 1; index += 1) {
+    context.beginPath();
+    context.ellipse(x + index * radius * 0.28, y, radius * 0.2, radius * 0.92, 0, 0, Math.PI * 2);
+    context.stroke();
+  }
+  context.restore();
+  drawFruitGloss(context, x, y, radius, 0.18);
+}
+
+function drawWatermelonSprite(context, fruit, type) {
+  const { x, y, radius } = fruit;
+
+  drawRoundFruitBase(context, fruit, type.color, { dark: "#26784b", light: "#b8f08a" });
+  context.save();
+  context.beginPath();
+  context.arc(x, y, radius * 0.94, 0, Math.PI * 2);
+  context.clip();
+  context.strokeStyle = "rgba(29, 93, 54, 0.58)";
+  context.lineWidth = Math.max(3, radius * 0.12);
+
+  for (let index = -2; index <= 2; index += 1) {
+    const startX = x + index * radius * 0.34;
+    context.beginPath();
+    context.moveTo(startX, y - radius * 0.95);
+    context.bezierCurveTo(
+      startX - radius * 0.18,
+      y - radius * 0.45,
+      startX + radius * 0.18,
+      y + radius * 0.12,
+      startX - radius * 0.06,
+      y + radius * 0.95,
+    );
+    context.stroke();
+  }
+
+  context.fillStyle = "rgba(255, 86, 90, 0.88)";
+  context.beginPath();
+  context.moveTo(x + radius * 0.18, y + radius * 0.08);
+  context.arc(x, y, radius * 0.64, 0.08, 0.92);
+  context.closePath();
+  context.fill();
+
+  context.fillStyle = "rgba(24, 33, 42, 0.76)";
+  for (let index = 0; index < 5; index += 1) {
+    context.beginPath();
+    context.ellipse(
+      x + radius * (0.24 + index * 0.08),
+      y + radius * (0.27 + Math.sin(index) * 0.12),
+      Math.max(1.4, radius * 0.026),
+      Math.max(2, radius * 0.045),
+      -0.4,
+      0,
+      Math.PI * 2,
+    );
+    context.fill();
+  }
+  context.restore();
+  drawFruitGloss(context, x, y, radius, 0.16);
 }
 
 function drawFruitPreview(context) {
