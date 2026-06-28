@@ -45,11 +45,13 @@ const profileMinesweeperWins = document.querySelector("#profile-minesweeper-wins
 const profileFlappyBest = document.querySelector("#profile-flappy-best");
 const profileDodgeBest = document.querySelector("#profile-dodge-best");
 const profileUntangleWins = document.querySelector("#profile-untangle-wins");
+const profileFruitBest = document.querySelector("#profile-fruit-best");
 const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"));
 const roomPanel = document.querySelector("#room-panel");
 const game2048Panel = document.querySelector("#game-2048");
 const gameMinesweeperPanel = document.querySelector("#game-minesweeper3d");
 const gameFlappyPanel = document.querySelector("#game-flappy");
+const gameFruitPanel = document.querySelector("#game-fruitmerge");
 const gameDodgePanel = document.querySelector("#game-dodge");
 const gameUntanglePanel = document.querySelector("#game-untangle");
 const gameDuelPanel = document.querySelector("#game-paddleduel");
@@ -71,6 +73,13 @@ const flappyStatusText = document.querySelector("#flappy-status-text");
 const flappyRestartButton = document.querySelector("#flappy-restart-button");
 const flappyScoreElement = document.querySelector("#flappy-score");
 const flappyBestElement = document.querySelector("#flappy-best");
+const fruitCanvas = document.querySelector("#fruit-canvas");
+const fruitContext = fruitCanvas.getContext("2d");
+const fruitStatusText = document.querySelector("#fruit-status-text");
+const fruitRestartButton = document.querySelector("#fruit-restart-button");
+const fruitScoreElement = document.querySelector("#fruit-score");
+const fruitLargestElement = document.querySelector("#fruit-largest");
+const fruitBestElement = document.querySelector("#fruit-best");
 const dodgeCanvas = document.querySelector("#dodge-canvas");
 const dodgeContext = dodgeCanvas.getContext("2d");
 const dodgeStatusText = document.querySelector("#dodge-status-text");
@@ -103,6 +112,7 @@ const socket = io();
 const GAME_2048 = "2048";
 const GAME_MINESWEEPER = "minesweeper3d";
 const GAME_FLAPPY = "flappy";
+const GAME_FRUIT = "fruitmerge";
 const GAME_DODGE = "dodge";
 const GAME_UNTANGLE = "untangle";
 const GAME_DUEL = "paddleduel";
@@ -114,6 +124,7 @@ const nameKey = "class-arcade-name";
 const currentGameKey = "class-arcade-current-game";
 const mineDifficultyKey = "class-arcade-minesweeper-difficulty";
 const flappyBestKey = "class-arcade-flappy-best";
+const fruitBestKey = "class-arcade-fruit-best";
 const dodgeBestKey = "class-arcade-dodge-best";
 const dodgeDifficultyKey = "class-arcade-dodge-difficulty";
 const untangleDifficultyKey = "class-arcade-untangle-difficulty";
@@ -122,6 +133,10 @@ const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)"
 const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const maxAnnouncements = 10;
 const announcements = [
+  {
+    title: "新增合成水果小游戏",
+    body: "加入轻量版合成水果玩法，支持手机竖屏、圆形碰撞合成、警戒线失败和账号积分结算。",
+  },
   {
     title: "绳结解谜新增撤回机会",
     body: "每局按难度提供 3、5、7、9 次撤回机会，拖错节点可以回退上一步并返还步数。",
@@ -194,6 +209,35 @@ const flappySettings = {
   pipeSpeed: 2.65,
   groundHeight: 62,
 };
+const fruitSettings = {
+  width: 420,
+  height: 620,
+  wallPadding: 18,
+  floorY: 596,
+  topLineY: 104,
+  spawnY: 58,
+  gravity: 0.28,
+  damping: 0.992,
+  friction: 0.985,
+  restitution: 0.22,
+  collisionIterations: 3,
+  maxFruits: 76,
+  dropCooldownMs: 420,
+  warningMs: 1800,
+};
+const fruitTypes = [
+  { name: "葡萄", mark: "G", color: "#8d5bd1", radius: 14, points: 2 },
+  { name: "樱桃", mark: "C", color: "#e94c5f", radius: 18, points: 5 },
+  { name: "橘子", mark: "O", color: "#f39b30", radius: 23, points: 12 },
+  { name: "柠檬", mark: "L", color: "#f4cf45", radius: 29, points: 24 },
+  { name: "猕猴桃", mark: "K", color: "#8abf45", radius: 36, points: 45 },
+  { name: "苹果", mark: "A", color: "#df4b43", radius: 44, points: 80 },
+  { name: "梨", mark: "P", color: "#b7d956", radius: 53, points: 140 },
+  { name: "桃子", mark: "T", color: "#f08c77", radius: 63, points: 230 },
+  { name: "菠萝", mark: "B", color: "#d4a938", radius: 74, points: 360 },
+  { name: "哈密瓜", mark: "H", color: "#85c96a", radius: 86, points: 560 },
+  { name: "西瓜", mark: "W", color: "#3fa05a", radius: 98, points: 900 },
+];
 const dodgeSettings = {
   width: 640,
   height: 480,
@@ -324,6 +368,9 @@ const text = {
   flappyReady: "点击、触屏或按空格起飞，穿过管道拿分。",
   flappyPlaying: "保持节奏，别碰到管道或地面。",
   flappyOver: "撞到了，本局分数已结算。",
+  fruitReady: "移动落点，点击或松手释放水果，相同水果碰撞会合成更大的水果。",
+  fruitPlaying: "控制落点，别让水果堆过警戒线太久。",
+  fruitOver: "水果堆过警戒线，本局已结算。",
   dodgeReady: "点击画面或按空格开始，移动飞机躲避随机子弹。",
   dodgePlaying: "保持移动，子弹会越来越密，贴近躲开可以擦弹加分。",
   dodgeOver: "被击中了，本局时间已结算。",
@@ -392,6 +439,22 @@ let flappyLastFrameTime = 0;
 let flappySettled = false;
 let flappyGroundOffset = 0;
 let flappyClouds = [];
+let fruitGameId = createGameId();
+let fruitScore = 0;
+let fruitBest = Number(localStorage.getItem(fruitBestKey)) || 0;
+let fruitLargestLevel = 0;
+let fruitNextLevel = 0;
+let fruitDropX = fruitSettings.width / 2;
+let fruitBodies = [];
+let fruitRunning = false;
+let fruitGameOver = false;
+let fruitStartedAt = 0;
+let fruitSettled = false;
+let fruitAnimationId = null;
+let fruitLastFrameTime = 0;
+let fruitLastDropAt = 0;
+let fruitWarningStartedAt = 0;
+let fruitPointerActive = false;
 let dodgeGameId = createGameId();
 let dodgePlane = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
 let dodgeTarget = { x: dodgeSettings.width / 2, y: dodgeSettings.height / 2 };
@@ -633,6 +696,7 @@ function renderAccount(nextProfile) {
     profileFlappyBest.textContent = "0";
     profileDodgeBest.textContent = "0.0s";
     profileUntangleWins.textContent = "0";
+    profileFruitBest.textContent = "0";
     renderAuthView();
     updateRoomActions();
     return;
@@ -655,6 +719,10 @@ function renderAccount(nextProfile) {
   profileDodgeBest.textContent = formatDodgeTime(dodgeBest);
   dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
   profileUntangleWins.textContent = String(profile.stats.untangle?.wins || 0);
+  fruitBest = Math.max(fruitBest, profile.stats.fruitmerge?.bestScore || 0);
+  localStorage.setItem(fruitBestKey, String(fruitBest));
+  profileFruitBest.textContent = String(fruitBest);
+  fruitBestElement.textContent = String(fruitBest);
   profileStrip.hidden = false;
   createRoomButton.disabled = false;
   joinRoomButton.disabled = false;
@@ -666,6 +734,7 @@ function updateRoomActions() {
   const show2048 = currentGame === GAME_2048;
   const showMinesweeper = currentGame === GAME_MINESWEEPER;
   const showFlappy = currentGame === GAME_FLAPPY;
+  const showFruit = currentGame === GAME_FRUIT;
   const showDodge = currentGame === GAME_DODGE;
   const showUntangle = currentGame === GAME_UNTANGLE;
   const showDuel = currentGame === GAME_DUEL;
@@ -675,6 +744,7 @@ function updateRoomActions() {
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
+  gameFruitPanel.classList.toggle("is-hidden", !showFruit);
   gameDodgePanel.classList.toggle("is-hidden", !showDodge);
   gameUntanglePanel.classList.toggle("is-hidden", !showUntangle);
   gameDuelPanel.classList.toggle("is-hidden", !showDuel);
@@ -694,6 +764,9 @@ function updateRoomActions() {
   } else if (showFlappy) {
     flappyStatusText.textContent = flappyGameOver ? text.flappyOver : text.flappyReady;
     renderFlappy();
+  } else if (showFruit) {
+    fruitStatusText.textContent = fruitGameOver ? text.fruitOver : text.fruitReady;
+    renderFruit();
   } else if (showDodge) {
     dodgeStatusText.textContent = dodgeGameOver
       ? text.dodgeOver
@@ -723,7 +796,12 @@ function setActiveGame(gameId, options = {}) {
     dodgeKeys.clear();
   }
 
-  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_DODGE, GAME_UNTANGLE, GAME_DUEL].includes(gameId)
+  if (currentGame === GAME_FRUIT && gameId !== GAME_FRUIT) {
+    stopFruitLoop();
+    fruitRunning = false;
+  }
+
+  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_FRUIT, GAME_DODGE, GAME_UNTANGLE, GAME_DUEL].includes(gameId)
     ? gameId
     : GAME_2048;
 
@@ -1138,6 +1216,36 @@ function handleKeyDown(event) {
     return;
   }
 
+  if (currentGame === GAME_FRUIT) {
+    if (event.key === "ArrowLeft" || event.key === "a" || event.key === "A") {
+      event.preventDefault();
+      fruitDropX = Math.max(
+        fruitSettings.wallPadding + fruitTypes[fruitNextLevel].radius,
+        fruitDropX - 18,
+      );
+      renderFruit();
+      return;
+    }
+
+    if (event.key === "ArrowRight" || event.key === "d" || event.key === "D") {
+      event.preventDefault();
+      fruitDropX = Math.min(
+        fruitSettings.width - fruitSettings.wallPadding - fruitTypes[fruitNextLevel].radius,
+        fruitDropX + 18,
+      );
+      renderFruit();
+      return;
+    }
+
+    if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      dropFruit();
+      return;
+    }
+
+    return;
+  }
+
   if (currentGame !== GAME_2048) {
     return;
   }
@@ -1418,7 +1526,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 水果 ${player.stats.fruitmerge?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
 
     info.append(name, meta);
 
@@ -2042,6 +2150,481 @@ function drawFlappyOverlay(context) {
     context.font = "800 16px Inter, Arial, sans-serif";
     context.fillText(`本局 ${flappyScore} 分`, flappySettings.width / 2, 276);
   }
+}
+
+function getFruitSpawnLevel() {
+  const maxSpawn = Math.min(4, Math.max(2, fruitLargestLevel));
+  const roll = Math.random();
+
+  if (roll < 0.56) return 0;
+  if (roll < 0.82) return 1;
+  if (roll < 0.94) return 2;
+  return Math.min(3, maxSpawn);
+}
+
+function createFruitBody(level, x, y, options = {}) {
+  const type = fruitTypes[level];
+
+  return {
+    id: createGameId(),
+    level,
+    x,
+    y,
+    vx: options.vx || 0,
+    vy: options.vy || 0,
+    radius: type.radius,
+    merged: false,
+    settledFrames: 0,
+    bornAt: Date.now(),
+  };
+}
+
+function resetFruitGame(options = {}) {
+  stopFruitLoop();
+  fruitGameId = createGameId();
+  fruitScore = 0;
+  fruitLargestLevel = 0;
+  fruitNextLevel = getFruitSpawnLevel();
+  fruitDropX = fruitSettings.width / 2;
+  fruitBodies = [];
+  fruitRunning = false;
+  fruitGameOver = false;
+  fruitStartedAt = 0;
+  fruitSettled = false;
+  fruitLastDropAt = 0;
+  fruitWarningStartedAt = 0;
+  fruitPointerActive = false;
+  fruitScoreElement.textContent = "0";
+  fruitLargestElement.textContent = fruitTypes[0].name;
+  fruitBestElement.textContent = String(fruitBest);
+  fruitRestartButton.textContent = "重新开局";
+  fruitStatusText.textContent = options.readyText || text.fruitReady;
+  renderFruit();
+}
+
+function startFruitGame() {
+  if (fruitRunning || fruitGameOver) {
+    return;
+  }
+
+  fruitRunning = true;
+  fruitStartedAt = fruitStartedAt || Date.now();
+  fruitLastFrameTime = performance.now();
+  fruitStatusText.textContent = text.fruitPlaying;
+  fruitAnimationId = window.requestAnimationFrame(updateFruitFrame);
+}
+
+function stopFruitLoop() {
+  if (fruitAnimationId) {
+    window.cancelAnimationFrame(fruitAnimationId);
+    fruitAnimationId = null;
+  }
+}
+
+function updateFruitFrame(timestamp) {
+  if (!fruitRunning) {
+    return;
+  }
+
+  const delta = Math.min(2, (timestamp - fruitLastFrameTime) / 16.67 || 1);
+  fruitLastFrameTime = timestamp;
+  stepFruit(delta);
+  renderFruit();
+
+  if (fruitGameOver) {
+    finishFruitGame();
+    return;
+  }
+
+  fruitAnimationId = window.requestAnimationFrame(updateFruitFrame);
+}
+
+function stepFruit(delta) {
+  fruitBodies.forEach((fruit) => {
+    fruit.vy += fruitSettings.gravity * delta;
+    fruit.vx *= fruitSettings.damping;
+    fruit.vy *= fruitSettings.damping;
+    fruit.x += fruit.vx * delta;
+    fruit.y += fruit.vy * delta;
+  });
+
+  for (let iteration = 0; iteration < fruitSettings.collisionIterations; iteration += 1) {
+    resolveFruitWalls();
+    resolveFruitPairs();
+  }
+
+  mergeFruitPairs();
+  fruitBodies = fruitBodies.filter((fruit) => !fruit.merged).slice(-fruitSettings.maxFruits);
+  checkFruitDangerLine();
+  updateFruitStatsDisplay();
+}
+
+function resolveFruitWalls() {
+  const left = fruitSettings.wallPadding;
+  const right = fruitSettings.width - fruitSettings.wallPadding;
+
+  fruitBodies.forEach((fruit) => {
+    if (fruit.x - fruit.radius < left) {
+      fruit.x = left + fruit.radius;
+      fruit.vx = Math.abs(fruit.vx) * fruitSettings.restitution;
+    } else if (fruit.x + fruit.radius > right) {
+      fruit.x = right - fruit.radius;
+      fruit.vx = -Math.abs(fruit.vx) * fruitSettings.restitution;
+    }
+
+    if (fruit.y + fruit.radius > fruitSettings.floorY) {
+      fruit.y = fruitSettings.floorY - fruit.radius;
+      fruit.vy = -Math.abs(fruit.vy) * fruitSettings.restitution;
+      fruit.vx *= fruitSettings.friction;
+    }
+  });
+}
+
+function resolveFruitPairs() {
+  for (let first = 0; first < fruitBodies.length; first += 1) {
+    for (let second = first + 1; second < fruitBodies.length; second += 1) {
+      const a = fruitBodies[first];
+      const b = fruitBodies[second];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distance = Math.hypot(dx, dy) || 0.0001;
+      const minimum = a.radius + b.radius;
+
+      if (distance >= minimum) {
+        continue;
+      }
+
+      const overlap = minimum - distance;
+      const nx = dx / distance;
+      const ny = dy / distance;
+      a.x -= nx * overlap * 0.5;
+      a.y -= ny * overlap * 0.5;
+      b.x += nx * overlap * 0.5;
+      b.y += ny * overlap * 0.5;
+
+      const relativeVelocity = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+      const impulse = Math.min(2.8, Math.max(-2.8, relativeVelocity * 0.42));
+      a.vx += impulse * nx;
+      a.vy += impulse * ny;
+      b.vx -= impulse * nx;
+      b.vy -= impulse * ny;
+    }
+  }
+}
+
+function mergeFruitPairs() {
+  for (let first = 0; first < fruitBodies.length; first += 1) {
+    const a = fruitBodies[first];
+
+    if (a.merged) {
+      continue;
+    }
+
+    for (let second = first + 1; second < fruitBodies.length; second += 1) {
+      const b = fruitBodies[second];
+
+      if (b.merged || a.level !== b.level || a.level >= fruitTypes.length - 1) {
+        continue;
+      }
+
+      const distance = Math.hypot(b.x - a.x, b.y - a.y);
+
+      if (distance > (a.radius + b.radius) * 0.82) {
+        continue;
+      }
+
+      const nextLevel = a.level + 1;
+      const merged = createFruitBody(
+        nextLevel,
+        (a.x + b.x) / 2,
+        (a.y + b.y) / 2,
+        {
+          vx: (a.vx + b.vx) * 0.34,
+          vy: Math.min(0, (a.vy + b.vy) * 0.2) - 1.2,
+        },
+      );
+      a.merged = true;
+      b.merged = true;
+      fruitBodies.push(merged);
+      fruitScore += fruitTypes[nextLevel].points;
+      fruitLargestLevel = Math.max(fruitLargestLevel, nextLevel);
+      fruitWarningStartedAt = 0;
+      return;
+    }
+  }
+}
+
+function checkFruitDangerLine() {
+  const now = Date.now();
+  const danger = fruitBodies.some((fruit) => {
+    const oldEnough = now - fruit.bornAt > 900;
+    const nearlyStill = Math.abs(fruit.vy) < 2.8;
+
+    return oldEnough && nearlyStill && fruit.y - fruit.radius < fruitSettings.topLineY;
+  });
+
+  if (!danger) {
+    fruitWarningStartedAt = 0;
+    return;
+  }
+
+  fruitWarningStartedAt = fruitWarningStartedAt || now;
+
+  if (now - fruitWarningStartedAt >= fruitSettings.warningMs) {
+    fruitGameOver = true;
+  }
+}
+
+function updateFruitStatsDisplay() {
+  fruitScoreElement.textContent = String(fruitScore);
+  fruitLargestElement.textContent = fruitTypes[fruitLargestLevel].name;
+  fruitBestElement.textContent = String(Math.max(fruitBest, fruitScore));
+}
+
+function setFruitDropXFromClient(clientX) {
+  const rect = fruitCanvas.getBoundingClientRect();
+  const scaleX = fruitSettings.width / rect.width;
+  const radius = fruitTypes[fruitNextLevel].radius;
+  fruitDropX = Math.max(
+    fruitSettings.wallPadding + radius,
+    Math.min(fruitSettings.width - fruitSettings.wallPadding - radius, (clientX - rect.left) * scaleX),
+  );
+}
+
+function dropFruit() {
+  const now = Date.now();
+
+  if (fruitGameOver || now - fruitLastDropAt < fruitSettings.dropCooldownMs) {
+    return;
+  }
+
+  startFruitGame();
+  const level = fruitNextLevel;
+  const fruit = createFruitBody(level, fruitDropX, fruitSettings.spawnY, {
+    vx: (Math.random() - 0.5) * 0.4,
+  });
+  fruitBodies.push(fruit);
+  fruitNextLevel = getFruitSpawnLevel();
+  fruitLastDropAt = now;
+  fruitStatusText.textContent = text.fruitPlaying;
+  renderFruit();
+}
+
+function handleFruitPointerDown(event) {
+  if (currentGame !== GAME_FRUIT) {
+    return;
+  }
+
+  event.preventDefault();
+  fruitCanvas.setPointerCapture(event.pointerId);
+  fruitPointerActive = true;
+  setFruitDropXFromClient(event.clientX);
+  renderFruit();
+}
+
+function handleFruitPointerMove(event) {
+  if (currentGame !== GAME_FRUIT || !fruitPointerActive) {
+    return;
+  }
+
+  event.preventDefault();
+  setFruitDropXFromClient(event.clientX);
+  renderFruit();
+}
+
+function handleFruitPointerUp(event) {
+  if (currentGame !== GAME_FRUIT || !fruitPointerActive) {
+    return;
+  }
+
+  event.preventDefault();
+  fruitPointerActive = false;
+  setFruitDropXFromClient(event.clientX);
+  dropFruit();
+}
+
+function handleFruitPointerCancel() {
+  fruitPointerActive = false;
+}
+
+function finishFruitGame() {
+  stopFruitLoop();
+  fruitRunning = false;
+  fruitRestartButton.textContent = "再来一局";
+  fruitStatusText.textContent = text.fruitOver;
+
+  if (fruitScore > fruitBest) {
+    fruitBest = fruitScore;
+    localStorage.setItem(fruitBestKey, String(fruitBest));
+    fruitBestElement.textContent = String(fruitBest);
+    profileFruitBest.textContent = String(fruitBest);
+  }
+
+  renderFruit();
+  settleFruitGame();
+}
+
+async function settleFruitGame() {
+  if (!hasAccount() || fruitSettled) {
+    return;
+  }
+
+  fruitSettled = true;
+  const seconds = fruitStartedAt ? Math.floor((Date.now() - fruitStartedAt) / 1000) : 0;
+
+  try {
+    const data = await apiRequest("/api/games/fruit-merge/results", {
+      method: "POST",
+      body: JSON.stringify({
+        gameId: fruitGameId,
+        score: fruitScore,
+        bestScore: fruitBest,
+        largestLevel: fruitLargestLevel,
+        largestName: fruitTypes[fruitLargestLevel].name,
+        seconds,
+      }),
+    });
+
+    renderAccount(data.profile);
+    await refreshLeaderboard(data.leaderboard);
+    fruitStatusText.textContent = `本局 ${fruitScore} 分，最大 ${fruitTypes[fruitLargestLevel].name}，获得 ${data.award.points} 积分。`;
+  } catch (error) {
+    fruitStatusText.textContent = error.message;
+    fruitSettled = false;
+  }
+}
+
+function renderFruit() {
+  const context = fruitContext;
+  const width = fruitSettings.width;
+  const height = fruitSettings.height;
+
+  context.clearRect(0, 0, width, height);
+  drawFruitBackground(context);
+  fruitBodies.forEach((fruit) => drawFruitBody(context, fruit));
+  drawFruitPreview(context);
+  drawFruitOverlay(context);
+}
+
+function drawFruitBackground(context) {
+  const gradient = context.createLinearGradient(0, 0, 0, fruitSettings.height);
+  gradient.addColorStop(0, "#fff7e8");
+  gradient.addColorStop(1, "#f2ead8");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, fruitSettings.width, fruitSettings.height);
+  context.fillStyle = "rgba(24, 33, 42, 0.08)";
+  context.fillRect(0, fruitSettings.floorY, fruitSettings.width, fruitSettings.height - fruitSettings.floorY);
+  context.strokeStyle = fruitWarningStartedAt ? "rgba(186, 63, 74, 0.86)" : "rgba(186, 63, 74, 0.42)";
+  context.setLineDash([8, 7]);
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(fruitSettings.wallPadding, fruitSettings.topLineY);
+  context.lineTo(fruitSettings.width - fruitSettings.wallPadding, fruitSettings.topLineY);
+  context.stroke();
+  context.setLineDash([]);
+  context.strokeStyle = "rgba(24, 33, 42, 0.16)";
+  context.lineWidth = 3;
+  context.strokeRect(
+    fruitSettings.wallPadding,
+    0,
+    fruitSettings.width - fruitSettings.wallPadding * 2,
+    fruitSettings.floorY,
+  );
+}
+
+function drawFruitBody(context, fruit) {
+  const type = fruitTypes[fruit.level];
+  const glow = context.createRadialGradient(
+    fruit.x - fruit.radius * 0.32,
+    fruit.y - fruit.radius * 0.34,
+    fruit.radius * 0.1,
+    fruit.x,
+    fruit.y,
+    fruit.radius,
+  );
+  glow.addColorStop(0, "#ffffff");
+  glow.addColorStop(0.18, type.color);
+  glow.addColorStop(1, shadeColor(type.color, -24));
+  context.fillStyle = glow;
+  context.beginPath();
+  context.arc(fruit.x, fruit.y, fruit.radius, 0, Math.PI * 2);
+  context.fill();
+  context.strokeStyle = "rgba(24, 33, 42, 0.16)";
+  context.lineWidth = Math.max(1.2, fruit.radius * 0.04);
+  context.stroke();
+
+  if (fruit.radius >= 18) {
+    context.fillStyle = "rgba(255, 255, 255, 0.86)";
+    context.font = `900 ${Math.max(10, Math.min(22, fruit.radius * 0.42))}px Inter, Arial, sans-serif`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(type.mark, fruit.x, fruit.y + 0.5);
+  }
+}
+
+function drawFruitPreview(context) {
+  if (fruitGameOver) {
+    return;
+  }
+
+  const type = fruitTypes[fruitNextLevel];
+  context.strokeStyle = "rgba(24, 33, 42, 0.18)";
+  context.setLineDash([5, 6]);
+  context.beginPath();
+  context.moveTo(fruitDropX, fruitSettings.spawnY);
+  context.lineTo(fruitDropX, fruitSettings.floorY);
+  context.stroke();
+  context.setLineDash([]);
+  context.globalAlpha = 0.78;
+  drawFruitBody(context, {
+    level: fruitNextLevel,
+    x: fruitDropX,
+    y: fruitSettings.spawnY,
+    radius: type.radius,
+  });
+  context.globalAlpha = 1;
+}
+
+function drawFruitOverlay(context) {
+  context.fillStyle = "rgba(24, 33, 42, 0.78)";
+  context.font = "900 26px Inter, Arial, sans-serif";
+  context.textAlign = "left";
+  context.fillText(String(fruitScore), 22, 38);
+
+  if (fruitWarningStartedAt && !fruitGameOver) {
+    const left = Math.max(0, fruitSettings.warningMs - (Date.now() - fruitWarningStartedAt));
+    context.fillStyle = "rgba(186, 63, 74, 0.9)";
+    context.font = "900 15px Inter, Arial, sans-serif";
+    context.fillText(`警戒线 ${Math.ceil(left / 1000)}s`, 22, 64);
+  }
+
+  if (!fruitRunning && fruitBodies.length === 0 && !fruitGameOver) {
+    context.textAlign = "center";
+    context.fillStyle = "rgba(24, 33, 42, 0.62)";
+    context.font = "900 19px Inter, Arial, sans-serif";
+    context.fillText("拖动选择落点，松手释放", fruitSettings.width / 2, fruitSettings.height * 0.44);
+  }
+
+  if (fruitGameOver) {
+    context.fillStyle = "rgba(24, 33, 42, 0.66)";
+    context.fillRect(54, 232, fruitSettings.width - 108, 126);
+    context.textAlign = "center";
+    context.fillStyle = "#ffffff";
+    context.font = "900 28px Inter, Arial, sans-serif";
+    context.fillText("游戏结束", fruitSettings.width / 2, 274);
+    context.font = "800 16px Inter, Arial, sans-serif";
+    context.fillText(`本局 ${fruitScore} 分 · 最大 ${fruitTypes[fruitLargestLevel].name}`, fruitSettings.width / 2, 310);
+  }
+}
+
+function shadeColor(color, percent) {
+  const value = Number.parseInt(color.slice(1), 16);
+  const amount = Math.round(2.55 * percent);
+  const red = Math.max(0, Math.min(255, (value >> 16) + amount));
+  const green = Math.max(0, Math.min(255, (value >> 8 & 0xff) + amount));
+  const blue = Math.max(0, Math.min(255, (value & 0xff) + amount));
+
+  return `#${(0x1000000 + red * 0x10000 + green * 0x100 + blue).toString(16).slice(1)}`;
 }
 
 function formatDodgeTime(seconds) {
@@ -4435,6 +5018,9 @@ flappyRestartButton.addEventListener("click", () => {
 
   startFlappyGame();
 });
+fruitRestartButton.addEventListener("click", () => {
+  resetFruitGame();
+});
 dodgeRestartButton.addEventListener("click", () => {
   if (dodgeRunning) {
     resetDodgeGame();
@@ -4463,6 +5049,10 @@ flappyCanvas.addEventListener("touchstart", (event) => {
   event.preventDefault();
   flap();
 }, { passive: false });
+fruitCanvas.addEventListener("pointerdown", handleFruitPointerDown);
+fruitCanvas.addEventListener("pointermove", handleFruitPointerMove);
+fruitCanvas.addEventListener("pointerup", handleFruitPointerUp);
+fruitCanvas.addEventListener("pointercancel", handleFruitPointerCancel);
 dodgeCanvas.addEventListener("pointerdown", handleDodgePointerDown);
 dodgeCanvas.addEventListener("pointermove", handleDodgePointerMove);
 dodgeCanvas.addEventListener("pointerup", () => {
@@ -4561,6 +5151,7 @@ board = createEmptyBoard();
 mineBoard = createMineBoard();
 initializeMinesweeperBoard();
 resetFlappyGame();
+resetFruitGame();
 resetDodgeGame();
 startUntangleGame({ notify: false, settlePrevious: false });
 renderDuel();

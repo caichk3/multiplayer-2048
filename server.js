@@ -306,6 +306,76 @@ app.post("/api/games/flappy/results", requireAuth, (request, response) => {
   });
 });
 
+app.post("/api/games/fruit-merge/results", requireAuth, (request, response) => {
+  const gameId = String(request.body?.gameId || "").trim();
+  const score = clampInteger(request.body?.score, 0, 999999999);
+  const bestScore = clampInteger(request.body?.bestScore, 0, 999999999);
+  const largestLevel = clampInteger(request.body?.largestLevel, 0, 20);
+  const largestName = String(request.body?.largestName || "").trim().slice(0, 20);
+  const seconds = clampInteger(request.body?.seconds, 0, 86400);
+  const user = request.user;
+
+  ensureUserShape(user);
+
+  if (!gameId) {
+    response.status(400).json({ ok: false, message: "缺少本局编号" });
+    return;
+  }
+
+  if (user.settledGames.includes(gameId)) {
+    response.json({
+      ok: true,
+      duplicate: true,
+      award: { points: 0, score, bestScore, largestLevel, largestName, seconds },
+      profile: getPublicProfile(user),
+      leaderboard: getGlobalLeaderboard(),
+    });
+    return;
+  }
+
+  const award = calculateFruitMergeAward({ score, largestLevel, seconds });
+  const gameStats = user.stats.games.fruitmerge;
+  const previousBestLargestLevel = gameStats.bestLargestLevel;
+
+  user.totalPoints += award.points;
+  user.stats.gamesPlayed += 1;
+  user.stats.lastPlayedAt = Date.now();
+  gameStats.plays += 1;
+  gameStats.totalScore += score;
+  gameStats.bestScore = Math.max(gameStats.bestScore, score, bestScore);
+  gameStats.bestLargestLevel = Math.max(gameStats.bestLargestLevel, largestLevel);
+  gameStats.bestLargestName =
+    largestLevel >= previousBestLargestLevel ? largestName : gameStats.bestLargestName;
+  gameStats.bestTime =
+    score > 0 && (gameStats.bestTime === 0 || seconds > gameStats.bestTime)
+      ? seconds
+      : gameStats.bestTime;
+  gameStats.lastScore = score;
+  gameStats.lastLargestLevel = largestLevel;
+  gameStats.lastPlayedAt = Date.now();
+  user.settledGames.push(gameId);
+  user.settledGames = user.settledGames.slice(-190);
+  user.recentResults.unshift({
+    game: "fruitmerge",
+    score,
+    bestScore: gameStats.bestScore,
+    largestLevel,
+    largestName,
+    seconds,
+    points: award.points,
+    playedAt: Date.now(),
+  });
+  user.recentResults = user.recentResults.slice(0, 12);
+  saveStore();
+
+  response.json({
+    ok: true,
+    award,
+    profile: getPublicProfile(user),
+    leaderboard: getGlobalLeaderboard(),
+  });
+});
+
 app.post("/api/games/dodge/results", requireAuth, (request, response) => {
   const gameId = String(request.body?.gameId || "").trim();
   const seconds = clampNumber(request.body?.seconds, 0, 86400);
@@ -544,6 +614,17 @@ function createDefaultStats() {
         lastScore: 0,
         lastPlayedAt: null,
       },
+      fruitmerge: {
+        plays: 0,
+        totalScore: 0,
+        bestScore: 0,
+        bestTime: 0,
+        bestLargestLevel: 0,
+        bestLargestName: "",
+        lastScore: 0,
+        lastLargestLevel: 0,
+        lastPlayedAt: null,
+      },
       dodge: {
         plays: 0,
         totalTime: 0,
@@ -603,6 +684,10 @@ function ensureUserShape(user) {
   user.stats.games.flappy = {
     ...createDefaultStats().games.flappy,
     ...(user.stats.games.flappy || {}),
+  };
+  user.stats.games.fruitmerge = {
+    ...createDefaultStats().games.fruitmerge,
+    ...(user.stats.games.fruitmerge || {}),
   };
   user.stats.games.dodge = {
     ...createDefaultStats().games.dodge,
@@ -728,6 +813,7 @@ function getPublicProfile(user) {
   const game2048 = user.stats.games["2048"];
   const minesweeper3d = user.stats.games.minesweeper3d;
   const flappy = user.stats.games.flappy;
+  const fruitmerge = user.stats.games.fruitmerge;
   const dodge = user.stats.games.dodge;
   const paddleduel = user.stats.games.paddleduel;
   const untangle = user.stats.games.untangle;
@@ -761,6 +847,16 @@ function getPublicProfile(user) {
         bestScore: flappy.bestScore,
         bestTime: flappy.bestTime,
         lastScore: flappy.lastScore,
+      },
+      fruitmerge: {
+        plays: fruitmerge.plays,
+        totalScore: fruitmerge.totalScore,
+        bestScore: fruitmerge.bestScore,
+        bestTime: fruitmerge.bestTime,
+        bestLargestLevel: fruitmerge.bestLargestLevel,
+        bestLargestName: fruitmerge.bestLargestName,
+        lastScore: fruitmerge.lastScore,
+        lastLargestLevel: fruitmerge.lastLargestLevel,
       },
       dodge: {
         plays: dodge.plays,
@@ -848,6 +944,20 @@ function calculateFlappyAward({ score, seconds }) {
   return {
     points: Math.max(0, scorePoints + survivalBonus + milestoneBonus),
     score,
+    seconds,
+  };
+}
+
+function calculateFruitMergeAward({ score, largestLevel, seconds }) {
+  const scorePoints = Math.floor(score * 1.6);
+  const fruitBonus = largestLevel * largestLevel * 32;
+  const survivalBonus = Math.min(260, seconds * 3);
+  const milestoneBonus = Math.floor(score / 500) * 120;
+
+  return {
+    points: Math.max(0, scorePoints + fruitBonus + survivalBonus + milestoneBonus),
+    score,
+    largestLevel,
     seconds,
   };
 }

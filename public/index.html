@@ -170,6 +170,10 @@
             <span>解绳胜场</span>
             <strong id="profile-untangle-wins">0</strong>
           </div>
+          <div>
+            <span>水果最高</span>
+            <strong id="profile-fruit-best">0</strong>
+          </div>
           <button id="logout-button" class="ghost-button" type="button">退出</button>
         </div>
       </section>
@@ -180,7 +184,7 @@
             <p class="eyebrow">小游戏</p>
             <h2>游戏列表</h2>
           </div>
-          <span id="catalog-count">6 个可玩</span>
+          <span id="catalog-count">7 个可玩</span>
         </div>
 
         <div class="game-catalog">
@@ -198,6 +202,11 @@
             <span class="game-badge">可玩</span>
             <h3>Flappy 飞鸟</h3>
             <p>反应挑战 · 随机管道 · 分数竞速</p>
+          </button>
+          <button class="game-card" type="button" data-game="fruitmerge">
+            <span class="game-badge">可玩</span>
+            <h3>合成水果</h3>
+            <p>落点控制 · 物理合成 · 大西瓜挑战</p>
           </button>
           <button class="game-card" type="button" data-game="dodge">
             <span class="game-badge">可玩</span>
@@ -380,6 +389,45 @@
               width="420"
               height="560"
               aria-label="Flappy 飞鸟游戏画面"
+            ></canvas>
+          </div>
+        </section>
+
+        <section class="game-panel game-view is-hidden" id="game-fruitmerge" aria-label="合成水果">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">Fruit Merge</p>
+              <h2>合成水果</h2>
+            </div>
+
+            <div class="score-panel fruit-score-panel" aria-label="合成水果状态">
+              <div class="score-box">
+                <span>分数</span>
+                <strong id="fruit-score">0</strong>
+              </div>
+              <div class="score-box">
+                <span>最大水果</span>
+                <strong id="fruit-largest">葡萄</strong>
+              </div>
+              <div class="score-box">
+                <span>最高</span>
+                <strong id="fruit-best">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="fruit-status-text">移动落点，点击或松手释放水果。</p>
+            <button id="fruit-restart-button" type="button">重新开局</button>
+          </div>
+
+          <div class="fruit-stage-wrap">
+            <canvas
+              id="fruit-canvas"
+              class="fruit-canvas"
+              width="420"
+              height="620"
+              aria-label="合成水果游戏画面"
             ></canvas>
           </div>
         </section>
