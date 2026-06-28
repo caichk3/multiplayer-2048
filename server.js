@@ -902,15 +902,34 @@ function getGlobalLeaderboard() {
     .slice(0, 20);
 }
 
+function normalizeAwardPoints(points, options = {}) {
+  const softCap = options.softCap ?? 1800;
+  const max = options.max ?? 3000;
+  const overflowRate = options.overflowRate ?? 0.32;
+  const safePoints = Math.max(0, Number(points) || 0);
+  const softened =
+    safePoints > softCap
+      ? softCap + (safePoints - softCap) * overflowRate
+      : safePoints;
+
+  return Math.max(0, Math.min(max, Math.floor(softened)));
+}
+
 function calculate2048Award({ score, bestTile, moves, won }) {
-  const scorePoints = Math.floor(score / 12);
-  const tilePoints = bestTile > 0 ? Math.floor(Math.log2(bestTile)) * 8 : 0;
+  const scorePoints = Math.floor(score / 18);
+  const tilePoints = bestTile > 0 ? Math.floor(Math.log2(bestTile)) * 14 : 0;
   const efficiencyBonus =
-    score > 0 && moves > 0 ? Math.max(0, Math.floor(score / Math.max(moves, 1))) : 0;
-  const winBonus = won ? 300 : 0;
+    score > 0 && moves > 0
+      ? Math.min(260, Math.max(0, Math.floor((score / Math.max(moves, 1)) * 2.2)))
+      : 0;
+  const winBonus = won ? 420 : 0;
 
   return {
-    points: Math.max(0, scorePoints + tilePoints + efficiencyBonus + winBonus),
+    points: normalizeAwardPoints(scorePoints + tilePoints + efficiencyBonus + winBonus, {
+      softCap: 1800,
+      max: 2600,
+      overflowRate: 0.25,
+    }),
     score,
     bestTile,
     moves,
@@ -920,14 +939,20 @@ function calculate2048Award({ score, bestTile, moves, won }) {
 
 function calculateMinesweeperAward({ won, revealed, totalSafe, flags, seconds }) {
   const progress = Math.min(1, revealed / Math.max(totalSafe, 1));
-  const revealPoints = Math.floor(revealed * 3);
-  const progressBonus = Math.floor(progress * 120);
-  const flagPoints = Math.min(flags, 18) * 2;
-  const winBonus = won ? 260 : 0;
-  const speedBonus = won ? Math.max(0, 180 - seconds) : 0;
+  const boardSize = Math.min(totalSafe, 220);
+  const revealPoints = Math.floor(revealed * 5);
+  const progressBonus = Math.floor(progress * 220);
+  const flagPoints = won ? Math.min(flags, totalSafe) * 4 : Math.min(flags, 16) * 2;
+  const winBonus = won ? Math.floor(320 + boardSize * 4.2) : 0;
+  const speedTarget = 50 + boardSize * 1.5;
+  const speedBonus = won ? Math.max(0, Math.floor((speedTarget - seconds) * 2.2)) : 0;
 
   return {
-    points: Math.max(0, revealPoints + progressBonus + flagPoints + winBonus + speedBonus),
+    points: normalizeAwardPoints(revealPoints + progressBonus + flagPoints + winBonus + speedBonus, {
+      softCap: 2100,
+      max: 3200,
+      overflowRate: 0.38,
+    }),
     won,
     revealed,
     totalSafe,
@@ -937,25 +962,34 @@ function calculateMinesweeperAward({ won, revealed, totalSafe, flags, seconds })
 }
 
 function calculateFlappyAward({ score, seconds }) {
-  const scorePoints = score * 28;
-  const survivalBonus = Math.min(220, seconds * 4);
-  const milestoneBonus = Math.floor(score / 5) * 80;
+  const scorePoints = score * 34;
+  const survivalBonus = Math.min(300, seconds * 5);
+  const milestoneBonus = Math.floor(score / 4) * 75;
+  const consistencyBonus = score >= 20 ? 220 : score >= 10 ? 90 : 0;
 
   return {
-    points: Math.max(0, scorePoints + survivalBonus + milestoneBonus),
+    points: normalizeAwardPoints(scorePoints + survivalBonus + milestoneBonus + consistencyBonus, {
+      softCap: 1600,
+      max: 2600,
+      overflowRate: 0.3,
+    }),
     score,
     seconds,
   };
 }
 
 function calculateFruitMergeAward({ score, largestLevel, seconds }) {
-  const scorePoints = Math.floor(score * 1.6);
-  const fruitBonus = largestLevel * largestLevel * 32;
-  const survivalBonus = Math.min(260, seconds * 3);
-  const milestoneBonus = Math.floor(score / 500) * 120;
+  const scorePoints = Math.floor(score / 26);
+  const fruitBonus = largestLevel * largestLevel * 12 + largestLevel * 35;
+  const survivalBonus = Math.min(160, Math.floor(seconds * 1.5));
+  const milestoneBonus = Math.floor(score / 3000) * 90;
 
   return {
-    points: Math.max(0, scorePoints + fruitBonus + survivalBonus + milestoneBonus),
+    points: normalizeAwardPoints(scorePoints + fruitBonus + survivalBonus + milestoneBonus, {
+      softCap: 1700,
+      max: 2600,
+      overflowRate: 0.28,
+    }),
     score,
     largestLevel,
     seconds,
@@ -963,12 +997,17 @@ function calculateFruitMergeAward({ score, largestLevel, seconds }) {
 }
 
 function calculateDodgeAward({ seconds, grazes }) {
-  const survivalPoints = Math.floor(seconds * 15);
-  const grazePoints = grazes * 12;
-  const milestoneBonus = Math.floor(seconds / 15) * 90;
+  const survivalPoints = Math.floor(seconds * 20);
+  const grazePoints = grazes * 18;
+  const milestoneBonus = Math.floor(seconds / 10) * 85;
+  const enduranceBonus = seconds >= 60 ? 260 : seconds >= 40 ? 120 : 0;
 
   return {
-    points: Math.max(0, survivalPoints + grazePoints + milestoneBonus),
+    points: normalizeAwardPoints(survivalPoints + grazePoints + milestoneBonus + enduranceBonus, {
+      softCap: 1800,
+      max: 3000,
+      overflowRate: 0.35,
+    }),
     seconds,
     grazes,
   };
@@ -984,10 +1023,22 @@ function calculateUntangleAward({
   seconds,
 }) {
   const difficultyBase = {
+    easy: 160,
+    normal: 340,
+    hard: 620,
+    expert: 980,
+  };
+  const moveValue = {
+    easy: 10,
+    normal: 12,
+    hard: 14,
+    expert: 16,
+  };
+  const speedTarget = {
     easy: 90,
-    normal: 170,
-    hard: 300,
-    expert: 460,
+    normal: 160,
+    hard: 260,
+    expert: 420,
   };
   const basePoints = difficultyBase[difficulty] || difficultyBase.normal;
   const movesLeft = Math.max(0, movesLimit - movesUsed);
@@ -995,15 +1046,19 @@ function calculateUntangleAward({
     initialIntersections > 0
       ? Math.max(0, Math.min(1, (initialIntersections - intersections) / initialIntersections))
       : won
-        ? 1
-        : 0;
-  const progressPoints = Math.floor(basePoints * 0.36 * solvedRatio);
+      ? 1
+      : 0;
+  const progressPoints = Math.floor(basePoints * 0.5 * solvedRatio);
   const winBonus = won ? basePoints : 0;
-  const moveBonus = won ? movesLeft * 9 : 0;
-  const speedBonus = won ? Math.max(0, 160 - seconds) : 0;
+  const moveBonus = won ? movesLeft * (moveValue[difficulty] || moveValue.normal) : 0;
+  const speedBonus = won ? Math.max(0, (speedTarget[difficulty] || speedTarget.normal) - seconds) : 0;
 
   return {
-    points: Math.max(0, progressPoints + winBonus + moveBonus + speedBonus),
+    points: normalizeAwardPoints(progressPoints + winBonus + moveBonus + speedBonus, {
+      softCap: 2200,
+      max: 3400,
+      overflowRate: 0.32,
+    }),
     won,
     difficulty,
     movesUsed,
@@ -1589,13 +1644,17 @@ function awardDuelResults(room) {
 }
 
 function calculateDuelAward({ result, goalsFor, goalsAgainst }) {
-  const basePoints = 80;
-  const goalPoints = goalsFor * 65;
-  const defenseBonus = Math.max(0, 4 - goalsAgainst) * 18;
-  const resultBonus = result === "won" ? 260 : result === "draw" ? 140 : 40;
+  const basePoints = 120;
+  const goalPoints = goalsFor * 72;
+  const defenseBonus = Math.max(0, 5 - goalsAgainst) * 24;
+  const resultBonus = result === "won" ? 360 : result === "draw" ? 210 : 80;
 
   return {
-    points: basePoints + goalPoints + defenseBonus + resultBonus,
+    points: normalizeAwardPoints(basePoints + goalPoints + defenseBonus + resultBonus, {
+      softCap: 1500,
+      max: 2400,
+      overflowRate: 0.35,
+    }),
     result,
     goalsFor,
     goalsAgainst,

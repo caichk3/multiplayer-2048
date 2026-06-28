@@ -138,6 +138,10 @@ const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
   {
+    title: "平台积分规则优化",
+    body: "下调合成水果的刷分收益，提升扫雷、绳结、灵敏、飞鸟和弹球的操作奖励，并加入软上限避免单局积分过度膨胀。",
+  },
+  {
     title: "合成水果再次加难",
     body: "葡萄放大到原柠檬尺寸，后续水果按容器可承受比例整体放大，警戒线大幅下移，并强化危险倒计时提示。",
   },
