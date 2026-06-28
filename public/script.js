@@ -138,6 +138,10 @@ const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
   {
+    title: "合成水果难度上调",
+    body: "水果整体变大，警戒线下移并缩短倒计时，同时降低高级水果出生概率，让合成西瓜更有压力。",
+  },
+  {
     title: "修复绳结手机端横向滑动",
     body: "手机打开绳结解谜时页面会锁住水平方向，状态栏和竖版画布不再把网页撑出屏幕。",
   },
@@ -230,29 +234,29 @@ const fruitSettings = {
   height: 620,
   wallPadding: 18,
   floorY: 596,
-  topLineY: 104,
-  spawnY: 58,
-  gravity: 0.28,
+  topLineY: 128,
+  spawnY: 64,
+  gravity: 0.31,
   damping: 0.992,
   friction: 0.985,
-  restitution: 0.22,
-  collisionIterations: 3,
-  maxFruits: 76,
+  restitution: 0.18,
+  collisionIterations: 4,
+  maxFruits: 64,
   dropCooldownMs: 420,
-  warningMs: 1800,
+  warningMs: 1250,
 };
 const fruitTypes = [
-  { name: "葡萄", mark: "G", color: "#8d5bd1", radius: 14, points: 2 },
-  { name: "樱桃", mark: "C", color: "#e94c5f", radius: 18, points: 5 },
-  { name: "橘子", mark: "O", color: "#f39b30", radius: 23, points: 12 },
-  { name: "柠檬", mark: "L", color: "#f4cf45", radius: 29, points: 24 },
-  { name: "猕猴桃", mark: "K", color: "#8abf45", radius: 36, points: 45 },
-  { name: "苹果", mark: "A", color: "#df4b43", radius: 44, points: 80 },
-  { name: "梨", mark: "P", color: "#b7d956", radius: 53, points: 140 },
-  { name: "桃子", mark: "T", color: "#f08c77", radius: 63, points: 230 },
-  { name: "菠萝", mark: "B", color: "#d4a938", radius: 74, points: 360 },
-  { name: "哈密瓜", mark: "H", color: "#85c96a", radius: 86, points: 560 },
-  { name: "西瓜", mark: "W", color: "#3fa05a", radius: 98, points: 900 },
+  { name: "葡萄", mark: "G", color: "#8d5bd1", radius: 16, points: 2 },
+  { name: "樱桃", mark: "C", color: "#e94c5f", radius: 21, points: 5 },
+  { name: "橘子", mark: "O", color: "#f39b30", radius: 27, points: 12 },
+  { name: "柠檬", mark: "L", color: "#f4cf45", radius: 34, points: 24 },
+  { name: "猕猴桃", mark: "K", color: "#8abf45", radius: 42, points: 45 },
+  { name: "苹果", mark: "A", color: "#df4b43", radius: 51, points: 80 },
+  { name: "梨", mark: "P", color: "#b7d956", radius: 61, points: 140 },
+  { name: "桃子", mark: "T", color: "#f08c77", radius: 72, points: 230 },
+  { name: "菠萝", mark: "B", color: "#d4a938", radius: 84, points: 360 },
+  { name: "哈密瓜", mark: "H", color: "#85c96a", radius: 97, points: 560 },
+  { name: "西瓜", mark: "W", color: "#3fa05a", radius: 112, points: 900 },
 ];
 const dodgeSettings = {
   width: 640,
@@ -2200,13 +2204,13 @@ function drawFlappyOverlay(context) {
 }
 
 function getFruitSpawnLevel() {
-  const maxSpawn = Math.min(4, Math.max(2, fruitLargestLevel));
   const roll = Math.random();
 
-  if (roll < 0.56) return 0;
-  if (roll < 0.82) return 1;
-  if (roll < 0.94) return 2;
-  return Math.min(3, maxSpawn);
+  if (roll < 0.7) return 0;
+  if (roll < 0.93) return 1;
+  if (fruitLargestLevel >= 3 && roll < 0.985) return 2;
+  if (fruitLargestLevel >= 6) return 3;
+  return 0;
 }
 
 function createFruitBody(level, x, y, options = {}) {
