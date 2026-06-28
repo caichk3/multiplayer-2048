@@ -567,7 +567,7 @@ h2 {
 
 .top-info-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(120px, 180px));
+  grid-template-columns: repeat(3, minmax(120px, 180px));
   align-items: start;
   gap: 10px;
   margin-bottom: 18px;

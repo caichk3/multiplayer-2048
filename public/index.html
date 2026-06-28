@@ -51,7 +51,7 @@
         <div class="connection-pill" id="connection-status">正在连接</div>
       </section>
 
-      <section class="top-info-row" aria-label="公告和排行榜">
+      <section class="top-info-row" aria-label="公告、排行榜和更新日志">
         <aside class="announcement-panel info-panel is-collapsed" id="announcement-panel" aria-label="公告栏">
           <button
             id="announcement-toggle"
@@ -127,6 +127,32 @@
                 <li class="empty-state">暂无积分</li>
               </ol>
             </div>
+          </div>
+        </aside>
+
+        <aside class="changelog-panel info-panel is-collapsed" id="changelog-panel" aria-label="更新日志">
+          <button
+            id="changelog-toggle"
+            class="panel-toggle"
+            type="button"
+            aria-expanded="false"
+            aria-controls="changelog-content"
+          >
+            更新日志
+          </button>
+
+          <div id="changelog-content" class="panel-content">
+            <div class="leaderboard-head">
+              <div>
+                <p class="eyebrow">更新</p>
+                <h2>更新日志</h2>
+              </div>
+              <button class="panel-close" type="button" data-panel-close="changelog" aria-label="关闭更新日志">
+                ×
+              </button>
+            </div>
+
+            <ol class="announcements-list" id="changelog-list"></ol>
           </div>
         </aside>
       </section>

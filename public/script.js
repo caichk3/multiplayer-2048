@@ -27,6 +27,9 @@ const announcementToggle = document.querySelector("#announcement-toggle");
 const announcementsList = document.querySelector("#announcements-list");
 const leaderboardPanel = document.querySelector("#leaderboard-panel");
 const leaderboardToggle = document.querySelector("#leaderboard-toggle");
+const changelogPanel = document.querySelector("#changelog-panel");
+const changelogToggle = document.querySelector("#changelog-toggle");
+const changelogList = document.querySelector("#changelog-list");
 const panelCloseButtons = Array.from(document.querySelectorAll("[data-panel-close]"));
 const connectionStatus = document.querySelector("#connection-status");
 const accountForm = document.querySelector("#account-form");
@@ -131,8 +134,9 @@ const untangleDifficultyKey = "class-arcade-untangle-difficulty";
 const untangleBestKey = "class-arcade-untangle-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
-const maxAnnouncements = 10;
-const announcements = [
+const maxInfoEntries = 10;
+const announcements = [];
+const changelogEntries = [
   {
     title: "修复合成水果碰撞不合成问题",
     body: "相同水果现在正常接触就会合成，并加入短暂出生保护，减少刚释放时的误合成。",
@@ -1561,6 +1565,7 @@ function closeInfoPanels() {
   [
     [announcementPanel, announcementToggle],
     [leaderboardPanel, leaderboardToggle],
+    [changelogPanel, changelogToggle],
   ].forEach(([panel, toggle]) => {
     panel.classList.add("is-collapsed");
     toggle.setAttribute("aria-expanded", "false");
@@ -1568,20 +1573,41 @@ function closeInfoPanels() {
 }
 
 function closeInfoPanelFromButton(button) {
-  if (button.dataset.panelClose === "announcement") {
-    announcementPanel.classList.add("is-collapsed");
-    announcementToggle.setAttribute("aria-expanded", "false");
+  const panelMap = {
+    announcement: [announcementPanel, announcementToggle],
+    leaderboard: [leaderboardPanel, leaderboardToggle],
+    changelog: [changelogPanel, changelogToggle],
+  };
+  const target = panelMap[button.dataset.panelClose];
+
+  if (!target) {
     return;
   }
 
-  leaderboardPanel.classList.add("is-collapsed");
-  leaderboardToggle.setAttribute("aria-expanded", "false");
+  const [panel, toggle] = target;
+  panel.classList.add("is-collapsed");
+  toggle.setAttribute("aria-expanded", "false");
 }
 
-function renderAnnouncements() {
-  announcementsList.innerHTML = "";
+function renderInfoList(list, entries, emptyTitle, emptyBody) {
+  list.innerHTML = "";
 
-  announcements.slice(0, maxAnnouncements).forEach((announcement) => {
+  if (!entries.length) {
+    const item = document.createElement("li");
+    item.className = "announcement-item";
+
+    const title = document.createElement("strong");
+    title.textContent = emptyTitle;
+
+    const body = document.createElement("span");
+    body.textContent = emptyBody;
+
+    item.append(title, body);
+    list.appendChild(item);
+    return;
+  }
+
+  entries.slice(0, maxInfoEntries).forEach((announcement) => {
     const item = document.createElement("li");
     item.className = "announcement-item";
 
@@ -1592,8 +1618,16 @@ function renderAnnouncements() {
     body.textContent = announcement.body;
 
     item.append(title, body);
-    announcementsList.appendChild(item);
+    list.appendChild(item);
   });
+}
+
+function renderAnnouncements() {
+  renderInfoList(announcementsList, announcements, "暂无公告", "公告栏以后只展示你明确要发布的正式公告。");
+}
+
+function renderChangelog() {
+  renderInfoList(changelogList, changelogEntries, "暂无更新", "最近还没有记录新的功能更新。");
 }
 
 function formatDuelTime(seconds) {
@@ -4991,6 +5025,7 @@ joinRoomButton.addEventListener("click", joinRoom);
 copyRoomButton.addEventListener("click", copyRoomCode);
 announcementToggle.addEventListener("click", () => toggleInfoPanel(announcementPanel, announcementToggle));
 leaderboardToggle.addEventListener("click", () => toggleInfoPanel(leaderboardPanel, leaderboardToggle));
+changelogToggle.addEventListener("click", () => toggleInfoPanel(changelogPanel, changelogToggle));
 announcementPanel.addEventListener("click", (event) => {
   if (event.target === announcementPanel) {
     closeInfoPanels();
@@ -4998,6 +5033,11 @@ announcementPanel.addEventListener("click", (event) => {
 });
 leaderboardPanel.addEventListener("click", (event) => {
   if (event.target === leaderboardPanel) {
+    closeInfoPanels();
+  }
+});
+changelogPanel.addEventListener("click", (event) => {
+  if (event.target === changelogPanel) {
     closeInfoPanels();
   }
 });
@@ -5148,6 +5188,7 @@ window.addEventListener("resize", () => {
 
 setupBoardMarkup();
 renderAnnouncements();
+renderChangelog();
 applyUntangleCanvasLayout({ scaleExisting: false });
 mineDifficultySelect.value = mineDifficulty;
 dodgeDifficultySelect.value = dodgeDifficulty;
