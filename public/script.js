@@ -138,6 +138,10 @@ const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
   {
+    title: "合成水果再次加难",
+    body: "葡萄放大到原柠檬尺寸，后续水果按容器可承受比例整体放大，警戒线大幅下移，并强化危险倒计时提示。",
+  },
+  {
     title: "合成水果难度上调",
     body: "水果整体变大，警戒线下移并缩短倒计时，同时降低高级水果出生概率，让合成西瓜更有压力。",
   },
@@ -234,29 +238,29 @@ const fruitSettings = {
   height: 620,
   wallPadding: 18,
   floorY: 596,
-  topLineY: 128,
-  spawnY: 64,
-  gravity: 0.31,
+  topLineY: 220,
+  spawnY: 78,
+  gravity: 0.34,
   damping: 0.992,
   friction: 0.985,
-  restitution: 0.18,
-  collisionIterations: 4,
-  maxFruits: 64,
-  dropCooldownMs: 420,
-  warningMs: 1250,
+  restitution: 0.16,
+  collisionIterations: 5,
+  maxFruits: 52,
+  dropCooldownMs: 460,
+  warningMs: 1050,
 };
 const fruitTypes = [
-  { name: "葡萄", mark: "G", color: "#8d5bd1", radius: 16, points: 2 },
-  { name: "樱桃", mark: "C", color: "#e94c5f", radius: 21, points: 5 },
-  { name: "橘子", mark: "O", color: "#f39b30", radius: 27, points: 12 },
-  { name: "柠檬", mark: "L", color: "#f4cf45", radius: 34, points: 24 },
-  { name: "猕猴桃", mark: "K", color: "#8abf45", radius: 42, points: 45 },
-  { name: "苹果", mark: "A", color: "#df4b43", radius: 51, points: 80 },
-  { name: "梨", mark: "P", color: "#b7d956", radius: 61, points: 140 },
-  { name: "桃子", mark: "T", color: "#f08c77", radius: 72, points: 230 },
-  { name: "菠萝", mark: "B", color: "#d4a938", radius: 84, points: 360 },
-  { name: "哈密瓜", mark: "H", color: "#85c96a", radius: 97, points: 560 },
-  { name: "西瓜", mark: "W", color: "#3fa05a", radius: 112, points: 900 },
+  { name: "葡萄", mark: "G", color: "#8d5bd1", radius: 34, points: 2 },
+  { name: "樱桃", mark: "C", color: "#e94c5f", radius: 40, points: 5 },
+  { name: "橘子", mark: "O", color: "#f39b30", radius: 48, points: 12 },
+  { name: "柠檬", mark: "L", color: "#f4cf45", radius: 57, points: 24 },
+  { name: "猕猴桃", mark: "K", color: "#8abf45", radius: 68, points: 45 },
+  { name: "苹果", mark: "A", color: "#df4b43", radius: 81, points: 80 },
+  { name: "梨", mark: "P", color: "#b7d956", radius: 96, points: 140 },
+  { name: "桃子", mark: "T", color: "#f08c77", radius: 114, points: 230 },
+  { name: "菠萝", mark: "B", color: "#d4a938", radius: 135, points: 360 },
+  { name: "哈密瓜", mark: "H", color: "#85c96a", radius: 160, points: 560 },
+  { name: "西瓜", mark: "W", color: "#3fa05a", radius: 188, points: 900 },
 ];
 const dodgeSettings = {
   width: 640,
@@ -2453,8 +2457,14 @@ function dropFruit() {
 
   startFruitGame();
   const level = fruitNextLevel;
-  const fruit = createFruitBody(level, fruitDropX, fruitSettings.spawnY, {
-    vx: (Math.random() - 0.5) * 0.4,
+  const radius = fruitTypes[level].radius;
+  const spawnJitter = (Math.random() - 0.5) * Math.min(18, radius * 0.38);
+  const spawnX = Math.max(
+    fruitSettings.wallPadding + radius,
+    Math.min(fruitSettings.width - fruitSettings.wallPadding - radius, fruitDropX + spawnJitter),
+  );
+  const fruit = createFruitBody(level, spawnX, fruitSettings.spawnY, {
+    vx: (Math.random() - 0.5) * 1.1,
   });
   fruitBodies.push(fruit);
   fruitNextLevel = getFruitSpawnLevel();
@@ -3166,9 +3176,19 @@ function drawFruitOverlay(context) {
 
   if (fruitWarningStartedAt && !fruitGameOver) {
     const left = Math.max(0, fruitSettings.warningMs - (Date.now() - fruitWarningStartedAt));
-    context.fillStyle = "rgba(186, 63, 74, 0.9)";
-    context.font = "900 15px Inter, Arial, sans-serif";
-    context.fillText(`警戒线 ${Math.ceil(left / 1000)}s`, 22, 64);
+    const secondsLeft = Math.max(0.1, left / 1000).toFixed(1);
+
+    context.save();
+    context.textAlign = "center";
+    context.fillStyle = "rgba(186, 63, 74, 0.94)";
+    context.fillRect(fruitSettings.width / 2 - 106, fruitSettings.topLineY - 48, 212, 34);
+    context.strokeStyle = "rgba(255, 255, 255, 0.78)";
+    context.lineWidth = 2;
+    context.strokeRect(fruitSettings.width / 2 - 106, fruitSettings.topLineY - 48, 212, 34);
+    context.fillStyle = "#ffffff";
+    context.font = "900 18px Inter, Arial, sans-serif";
+    context.fillText(`危险 ${secondsLeft}s`, fruitSettings.width / 2, fruitSettings.topLineY - 25);
+    context.restore();
   }
 
   if (!fruitRunning && fruitBodies.length === 0 && !fruitGameOver) {
