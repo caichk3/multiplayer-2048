@@ -138,6 +138,10 @@ const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
   {
+    title: "合成水果尺寸微调",
+    body: "水果整体缩小一档，保留压力感但降低过度拥挤，让合成水果的操作空间更舒服。",
+  },
+  {
     title: "平台积分规则优化",
     body: "下调合成水果的刷分收益，提升扫雷、绳结、灵敏、飞鸟和弹球的操作奖励，并加入软上限避免单局积分过度膨胀。",
   },
@@ -254,17 +258,17 @@ const fruitSettings = {
   warningMs: 1050,
 };
 const fruitTypes = [
-  { name: "葡萄", mark: "G", color: "#8d5bd1", radius: 34, points: 2 },
-  { name: "樱桃", mark: "C", color: "#e94c5f", radius: 40, points: 5 },
-  { name: "橘子", mark: "O", color: "#f39b30", radius: 48, points: 12 },
-  { name: "柠檬", mark: "L", color: "#f4cf45", radius: 57, points: 24 },
-  { name: "猕猴桃", mark: "K", color: "#8abf45", radius: 68, points: 45 },
-  { name: "苹果", mark: "A", color: "#df4b43", radius: 81, points: 80 },
-  { name: "梨", mark: "P", color: "#b7d956", radius: 96, points: 140 },
-  { name: "桃子", mark: "T", color: "#f08c77", radius: 114, points: 230 },
-  { name: "菠萝", mark: "B", color: "#d4a938", radius: 135, points: 360 },
-  { name: "哈密瓜", mark: "H", color: "#85c96a", radius: 160, points: 560 },
-  { name: "西瓜", mark: "W", color: "#3fa05a", radius: 188, points: 900 },
+  { name: "葡萄", mark: "G", color: "#8d5bd1", radius: 29, points: 2 },
+  { name: "樱桃", mark: "C", color: "#e94c5f", radius: 34, points: 5 },
+  { name: "橘子", mark: "O", color: "#f39b30", radius: 41, points: 12 },
+  { name: "柠檬", mark: "L", color: "#f4cf45", radius: 49, points: 24 },
+  { name: "猕猴桃", mark: "K", color: "#8abf45", radius: 58, points: 45 },
+  { name: "苹果", mark: "A", color: "#df4b43", radius: 69, points: 80 },
+  { name: "梨", mark: "P", color: "#b7d956", radius: 82, points: 140 },
+  { name: "桃子", mark: "T", color: "#f08c77", radius: 97, points: 230 },
+  { name: "菠萝", mark: "B", color: "#d4a938", radius: 115, points: 360 },
+  { name: "哈密瓜", mark: "H", color: "#85c96a", radius: 136, points: 560 },
+  { name: "西瓜", mark: "W", color: "#3fa05a", radius: 160, points: 900 },
 ];
 const dodgeSettings = {
   width: 640,
