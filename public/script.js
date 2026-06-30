@@ -602,6 +602,8 @@ let cubeDragging = false;
 let cubeDragX = 0;
 let cubeDragY = 0;
 let cubeDragMoved = false;
+let cubePointerTile = null;
+let cubeSuppressNextClick = false;
 let duelState = null;
 let duelSide = "";
 let duelInputDirection = 0;
@@ -4952,6 +4954,9 @@ function setCubeView(face) {
 
 function moveCubeTile(face, index) {
   if (cubeSolved || !isCubeTileMovable(face, index)) {
+    if (!cubeSolved && getCubeCell({ face, index }) !== null) {
+      cubeStatusText.textContent = "只能移动空格上下左右相邻的数字。可移动数字会显示绿色边框。";
+    }
     return;
   }
 
@@ -5019,6 +5024,11 @@ async function settleCubePuzzleGame() {
 }
 
 function handleCubeStageClick(event) {
+  if (cubeSuppressNextClick) {
+    cubeSuppressNextClick = false;
+    return;
+  }
+
   const tile = event.target.closest(".cube-tile");
 
   if (!tile || cubeDragMoved) {
@@ -5035,6 +5045,7 @@ function handleCubePointerDown(event) {
 
   cubeDragging = true;
   cubeDragMoved = false;
+  cubePointerTile = event.target.closest(".cube-tile");
   cubeDragX = event.clientX;
   cubeDragY = event.clientY;
   cubeStage.setPointerCapture(event.pointerId);
@@ -5064,11 +5075,20 @@ function handleCubePointerUp(event) {
     return;
   }
 
+  const shouldMoveTile = cubePointerTile && !cubeDragMoved;
+  const tile = cubePointerTile;
+
   cubeDragging = false;
+  cubePointerTile = null;
   try {
     cubeStage.releasePointerCapture(event.pointerId);
   } catch {
     // pointer capture may already be released
+  }
+
+  if (shouldMoveTile) {
+    cubeSuppressNextClick = true;
+    moveCubeTile(tile.dataset.face, Number(tile.dataset.index));
   }
 
   window.setTimeout(() => {

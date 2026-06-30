@@ -1984,6 +1984,15 @@ h2 {
   border-color: rgba(24, 124, 104, 0.5);
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(223, 244, 235, 0.95));
+  box-shadow:
+    0 8px 16px rgba(24, 124, 104, 0.16),
+    inset 0 0 0 2px rgba(24, 124, 104, 0.14);
+}
+
+.cube-tile.is-movable:not(.is-empty):hover {
+  border-color: rgba(24, 124, 104, 0.78);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 1), rgba(208, 239, 225, 0.98));
 }
 
 .cube-tile.is-wrong:not(.is-empty) {
