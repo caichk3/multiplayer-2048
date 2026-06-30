@@ -197,6 +197,10 @@
             <strong id="profile-untangle-wins">0</strong>
           </div>
           <div>
+            <span>六面胜场</span>
+            <strong id="profile-cube-wins">0</strong>
+          </div>
+          <div>
             <span>水果最高</span>
             <strong id="profile-fruit-best">0</strong>
           </div>
@@ -210,7 +214,7 @@
             <p class="eyebrow">小游戏</p>
             <h2>游戏列表</h2>
           </div>
-          <span id="catalog-count">7 个可玩</span>
+          <span id="catalog-count">8 个可玩</span>
         </div>
 
         <div class="game-catalog">
@@ -243,6 +247,11 @@
             <span class="game-badge">可玩</span>
             <h3>绳结解谜</h3>
             <p>拖动节点 · 解开交叉 · 有限步数</p>
+          </button>
+          <button class="game-card" type="button" data-game="cubepuzzle">
+            <span class="game-badge">可玩</span>
+            <h3>六面华容道</h3>
+            <p>六面联动 · 跨面空格 · 复原立方体</p>
           </button>
           <button class="game-card" type="button" data-game="paddleduel">
             <span class="game-badge">对战</span>
@@ -564,6 +573,58 @@
               aria-label="绳结解谜游戏画面"
             ></canvas>
           </div>
+        </section>
+
+        <section class="game-panel game-view is-hidden" id="game-cubepuzzle" aria-label="六面数字华容道">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">Cube Sliding Puzzle</p>
+              <h2>六面华容道</h2>
+            </div>
+
+            <div class="score-panel cube-score-panel" aria-label="六面华容道状态">
+              <div class="score-box">
+                <span>错位</span>
+                <strong id="cube-misplaced">0</strong>
+              </div>
+              <div class="score-box">
+                <span>步数</span>
+                <strong id="cube-moves">0</strong>
+              </div>
+              <div class="score-box">
+                <span>时间</span>
+                <strong id="cube-time">0s</strong>
+              </div>
+              <div class="score-box">
+                <span>最佳</span>
+                <strong id="cube-best">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="cube-status-text">点击空格相邻数字，跨面移动空格并复原整个立方体。</p>
+            <div class="cube-controls">
+              <label for="cube-difficulty">难度</label>
+              <select id="cube-difficulty">
+                <option value="easy">入门</option>
+                <option value="normal">标准</option>
+                <option value="hard">困难</option>
+                <option value="expert">专家</option>
+              </select>
+              <div class="cube-view-buttons" aria-label="视角">
+                <button type="button" data-cube-view="front">前</button>
+                <button type="button" data-cube-view="right">右</button>
+                <button type="button" data-cube-view="back">后</button>
+                <button type="button" data-cube-view="left">左</button>
+                <button type="button" data-cube-view="top">上</button>
+                <button type="button" data-cube-view="bottom">下</button>
+              </div>
+              <button id="cube-restart-button" type="button">重新开局</button>
+            </div>
+          </div>
+
+          <div id="cube-puzzle-stage" class="cube-puzzle-stage" aria-label="六面华容道游戏区域"></div>
         </section>
 
         <section class="game-panel game-view is-hidden" id="game-paddleduel" aria-label="挡板弹球">

@@ -528,6 +528,84 @@ app.post("/api/games/untangle/results", requireAuth, (request, response) => {
   });
 });
 
+app.post("/api/games/cube-puzzle/results", requireAuth, (request, response) => {
+  const gameId = String(request.body?.gameId || "").trim();
+  const won = Boolean(request.body?.won);
+  const difficulty = normalizeCubeDifficulty(request.body?.difficulty);
+  const moves = clampInteger(request.body?.moves, 0, 999999);
+  const seconds = clampInteger(request.body?.seconds, 0, 86400);
+  const scrambleMoves = clampInteger(request.body?.scrambleMoves, 1, 999999);
+  const misplaced = clampInteger(request.body?.misplaced, 0, 54);
+  const user = request.user;
+
+  ensureUserShape(user);
+
+  if (!gameId) {
+    response.status(400).json({ ok: false, message: "缺少本局编号" });
+    return;
+  }
+
+  if (user.settledGames.includes(gameId)) {
+    response.json({
+      ok: true,
+      duplicate: true,
+      award: { points: 0, won, difficulty, moves, seconds, scrambleMoves, misplaced },
+      profile: getPublicProfile(user),
+      leaderboard: getGlobalLeaderboard(),
+    });
+    return;
+  }
+
+  const award = calculateCubePuzzleAward({
+    won,
+    difficulty,
+    moves,
+    seconds,
+    scrambleMoves,
+  });
+  const gameStats = user.stats.games.cubepuzzle;
+
+  user.totalPoints += award.points;
+  user.stats.gamesPlayed += 1;
+  user.stats.lastPlayedAt = Date.now();
+  gameStats.plays += 1;
+  gameStats.wins += won ? 1 : 0;
+  gameStats.bestMoves =
+    won && (gameStats.bestMoves === 0 || moves < gameStats.bestMoves)
+      ? moves
+      : gameStats.bestMoves;
+  gameStats.bestTime =
+    won && (gameStats.bestTime === 0 || seconds < gameStats.bestTime)
+      ? seconds
+      : gameStats.bestTime;
+  gameStats.bestDifficulty = won ? difficulty : gameStats.bestDifficulty;
+  gameStats.lastResult = won ? "won" : "lost";
+  gameStats.lastMoves = moves;
+  gameStats.lastPlayedAt = Date.now();
+  user.settledGames.push(gameId);
+  user.settledGames = user.settledGames.slice(-240);
+  user.recentResults.unshift({
+    game: "cubepuzzle",
+    won,
+    difficulty,
+    moves,
+    seconds,
+    scrambleMoves,
+    misplaced,
+    points: award.points,
+    playedAt: Date.now(),
+  });
+  user.recentResults = user.recentResults.slice(0, 12);
+  saveStore();
+
+  response.json({
+    ok: true,
+    award,
+    profile: getPublicProfile(user),
+    leaderboard: getGlobalLeaderboard(),
+  });
+});
+
 function saveStore() {
   persistence.saveStore(store).catch((error) => {
     console.error(`[db] Failed to save user store: ${error.message}`);
@@ -653,6 +731,16 @@ function createDefaultStats() {
         lastIntersections: 0,
         lastPlayedAt: null,
       },
+      cubepuzzle: {
+        plays: 0,
+        wins: 0,
+        bestTime: 0,
+        bestMoves: 0,
+        bestDifficulty: "",
+        lastResult: "",
+        lastMoves: 0,
+        lastPlayedAt: null,
+      },
       sokoban: {
         plays: 0,
         wins: 0,
@@ -701,6 +789,10 @@ function ensureUserShape(user) {
     ...createDefaultStats().games.untangle,
     ...(user.stats.games.untangle || {}),
   };
+  user.stats.games.cubepuzzle = {
+    ...createDefaultStats().games.cubepuzzle,
+    ...(user.stats.games.cubepuzzle || {}),
+  };
   user.stats.games.sokoban = {
     ...createDefaultStats().games.sokoban,
     ...(user.stats.games.sokoban || {}),
@@ -725,6 +817,12 @@ function normalizePin(pin) {
 }
 
 function normalizeUntangleDifficulty(value) {
+  const normalized = String(value || "").trim();
+
+  return ["easy", "normal", "hard", "expert"].includes(normalized) ? normalized : "normal";
+}
+
+function normalizeCubeDifficulty(value) {
   const normalized = String(value || "").trim();
 
   return ["easy", "normal", "hard", "expert"].includes(normalized) ? normalized : "normal";
@@ -817,6 +915,7 @@ function getPublicProfile(user) {
   const dodge = user.stats.games.dodge;
   const paddleduel = user.stats.games.paddleduel;
   const untangle = user.stats.games.untangle;
+  const cubepuzzle = user.stats.games.cubepuzzle;
 
   return {
     id: user.id,
@@ -882,6 +981,15 @@ function getPublicProfile(user) {
         bestDifficulty: untangle.bestDifficulty,
         lastResult: untangle.lastResult,
         lastIntersections: untangle.lastIntersections,
+      },
+      cubepuzzle: {
+        plays: cubepuzzle.plays,
+        wins: cubepuzzle.wins,
+        bestTime: cubepuzzle.bestTime,
+        bestMoves: cubepuzzle.bestMoves,
+        bestDifficulty: cubepuzzle.bestDifficulty,
+        lastResult: cubepuzzle.lastResult,
+        lastMoves: cubepuzzle.lastMoves,
       },
     },
     recentResults: user.recentResults.slice(0, 6),
@@ -1067,6 +1175,42 @@ function calculateUntangleAward({
     intersections,
     initialIntersections,
     seconds,
+  };
+}
+
+function calculateCubePuzzleAward({ won, difficulty, moves, seconds, scrambleMoves }) {
+  const difficultyBase = {
+    easy: 220,
+    normal: 520,
+    hard: 980,
+    expert: 1500,
+  };
+  const speedTarget = {
+    easy: 100,
+    normal: 220,
+    hard: 420,
+    expert: 700,
+  };
+  const basePoints = difficultyBase[difficulty] || difficultyBase.normal;
+  const safeMoves = Math.max(1, moves);
+  const targetMoves = Math.max(1, Math.floor(scrambleMoves * 1.18));
+  const efficiency = Math.max(0, Math.min(1, targetMoves / safeMoves));
+  const completionBonus = won ? basePoints : Math.floor(basePoints * 0.18);
+  const efficiencyBonus = won ? Math.floor(basePoints * 0.62 * efficiency) : 0;
+  const speedBonus = won ? Math.max(0, (speedTarget[difficulty] || speedTarget.normal) - seconds) : 0;
+  const patienceBonus = won ? Math.min(260, Math.floor(scrambleMoves * 1.2)) : 0;
+
+  return {
+    points: normalizeAwardPoints(completionBonus + efficiencyBonus + speedBonus + patienceBonus, {
+      softCap: 2400,
+      max: 3600,
+      overflowRate: 0.3,
+    }),
+    won,
+    difficulty,
+    moves,
+    seconds,
+    scrambleMoves,
   };
 }
 

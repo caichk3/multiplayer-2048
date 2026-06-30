@@ -48,6 +48,7 @@ const profileMinesweeperWins = document.querySelector("#profile-minesweeper-wins
 const profileFlappyBest = document.querySelector("#profile-flappy-best");
 const profileDodgeBest = document.querySelector("#profile-dodge-best");
 const profileUntangleWins = document.querySelector("#profile-untangle-wins");
+const profileCubeWins = document.querySelector("#profile-cube-wins");
 const profileFruitBest = document.querySelector("#profile-fruit-best");
 const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"));
 const roomPanel = document.querySelector("#room-panel");
@@ -57,6 +58,7 @@ const gameFlappyPanel = document.querySelector("#game-flappy");
 const gameFruitPanel = document.querySelector("#game-fruitmerge");
 const gameDodgePanel = document.querySelector("#game-dodge");
 const gameUntanglePanel = document.querySelector("#game-untangle");
+const gameCubePanel = document.querySelector("#game-cubepuzzle");
 const gameDuelPanel = document.querySelector("#game-paddleduel");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
@@ -102,6 +104,15 @@ const untangleCrossingsElement = document.querySelector("#untangle-crossings");
 const untangleMovesElement = document.querySelector("#untangle-moves");
 const untangleBestElement = document.querySelector("#untangle-best");
 const untangleUndosElement = document.querySelector("#untangle-undos");
+const cubeStage = document.querySelector("#cube-puzzle-stage");
+const cubeStatusText = document.querySelector("#cube-status-text");
+const cubeRestartButton = document.querySelector("#cube-restart-button");
+const cubeDifficultySelect = document.querySelector("#cube-difficulty");
+const cubeMisplacedElement = document.querySelector("#cube-misplaced");
+const cubeMovesElement = document.querySelector("#cube-moves");
+const cubeTimeElement = document.querySelector("#cube-time");
+const cubeBestElement = document.querySelector("#cube-best");
+const cubeViewButtons = Array.from(document.querySelectorAll("[data-cube-view]"));
 const duelCanvas = document.querySelector("#duel-canvas");
 const duelContext = duelCanvas.getContext("2d");
 const duelScoreElement = document.querySelector("#duel-score");
@@ -118,6 +129,7 @@ const GAME_FLAPPY = "flappy";
 const GAME_FRUIT = "fruitmerge";
 const GAME_DODGE = "dodge";
 const GAME_UNTANGLE = "untangle";
+const GAME_CUBE = "cubepuzzle";
 const GAME_DUEL = "paddleduel";
 const size = 4;
 const totalCells = size * size;
@@ -132,11 +144,18 @@ const dodgeBestKey = "class-arcade-dodge-best";
 const dodgeDifficultyKey = "class-arcade-dodge-difficulty";
 const untangleDifficultyKey = "class-arcade-untangle-difficulty";
 const untangleBestKey = "class-arcade-untangle-best";
+const cubeDifficultyKey = "class-arcade-cube-difficulty";
+const cubeBestKey = "class-arcade-cube-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
+const cubeLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
+  {
+    title: "新增六面华容道",
+    body: "加入 3D 立方体数字华容道，电脑端可拖动旋转立方体，手机端显示 3 行 2 列六面联动平面。",
+  },
   {
     title: "合成水果尺寸微调",
     body: "水果整体缩小一档，保留压力感但降低过度拥挤，让合成水果的操作空间更舒服。",
@@ -385,6 +404,41 @@ const untangleDifficulties = {
     undoLimit: 9,
   },
 };
+const cubeFaceOrder = ["front", "right", "back", "left", "top", "bottom"];
+const cubeFaceLabels = {
+  front: "前面",
+  right: "右面",
+  back: "后面",
+  left: "左面",
+  top: "上面",
+  bottom: "下面",
+};
+const cubeFaceShortLabels = {
+  front: "F",
+  right: "R",
+  back: "B",
+  left: "L",
+  top: "T",
+  bottom: "D",
+};
+const cubeDifficulties = {
+  easy: {
+    label: "入门",
+    scrambleMoves: 36,
+  },
+  normal: {
+    label: "标准",
+    scrambleMoves: 88,
+  },
+  hard: {
+    label: "困难",
+    scrambleMoves: 160,
+  },
+  expert: {
+    label: "专家",
+    scrambleMoves: 260,
+  },
+};
 const text = {
   ready: "已经进入房间，开始挑战吧。本局结束或重新开始时会结算平台积分。",
   waiting: "滑动方块合成 2048，本局结束或重开时会结算积分。",
@@ -409,6 +463,8 @@ const text = {
   untangleReady: "拖动节点，让任意两条绳索不再交叉。",
   untangleWin: "全部绳索已解开，积分已结算。",
   untangleLose: "步数用完了，重新观察一下绳子的结构再试。",
+  cubeReady: "点击空格相邻数字，空格会在六个面之间移动。电脑可拖动旋转，手机显示六面联动平面。",
+  cubeWin: "立方体已复原，积分已结算。",
 };
 
 let currentGame = localStorage.getItem(currentGameKey) || GAME_2048;
@@ -527,6 +583,25 @@ let untangleDragPointerId = null;
 let untangleDragStartX = 0;
 let untangleDragStartY = 0;
 let untangleDidMove = false;
+let cubeGameId = createGameId();
+let cubeDifficulty = localStorage.getItem(cubeDifficultyKey) || "normal";
+let cubeBest = Number(localStorage.getItem(cubeBestKey)) || 0;
+let cubeCells = createSolvedCubeCells();
+let cubeBlank = { face: "front", index: 8 };
+let cubeMoves = 0;
+let cubeMisplaced = 0;
+let cubeStartedAt = 0;
+let cubeSeconds = 0;
+let cubeTimerId = null;
+let cubeSettled = false;
+let cubeSolved = false;
+let cubeFlatMode = cubeLayoutQuery.matches;
+let cubeRotationX = -24;
+let cubeRotationY = -36;
+let cubeDragging = false;
+let cubeDragX = 0;
+let cubeDragY = 0;
+let cubeDragMoved = false;
 let duelState = null;
 let duelSide = "";
 let duelInputDirection = 0;
@@ -542,6 +617,10 @@ if (!dodgeDifficulties[dodgeDifficulty]) {
 
 if (!untangleDifficulties[untangleDifficulty]) {
   untangleDifficulty = "normal";
+}
+
+if (!cubeDifficulties[cubeDifficulty]) {
+  cubeDifficulty = "normal";
 }
 
 function createGameId() {
@@ -729,6 +808,7 @@ function renderAccount(nextProfile) {
     profileFlappyBest.textContent = "0";
     profileDodgeBest.textContent = "0.0s";
     profileUntangleWins.textContent = "0";
+    profileCubeWins.textContent = "0";
     profileFruitBest.textContent = "0";
     renderAuthView();
     updateRoomActions();
@@ -752,6 +832,13 @@ function renderAccount(nextProfile) {
   profileDodgeBest.textContent = formatDodgeTime(dodgeBest);
   dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
   profileUntangleWins.textContent = String(profile.stats.untangle?.wins || 0);
+  profileCubeWins.textContent = String(profile.stats.cubepuzzle?.wins || 0);
+  const profileCubeBest = Number(profile.stats.cubepuzzle?.bestMoves) || 0;
+  if (profileCubeBest > 0 && (cubeBest === 0 || profileCubeBest < cubeBest)) {
+    cubeBest = profileCubeBest;
+    localStorage.setItem(cubeBestKey, String(cubeBest));
+  }
+  cubeBestElement.textContent = cubeBest > 0 ? String(cubeBest) : "0";
   fruitBest = Math.max(fruitBest, profile.stats.fruitmerge?.bestScore || 0);
   localStorage.setItem(fruitBestKey, String(fruitBest));
   profileFruitBest.textContent = String(fruitBest);
@@ -770,6 +857,7 @@ function updateRoomActions() {
   const showFruit = currentGame === GAME_FRUIT;
   const showDodge = currentGame === GAME_DODGE;
   const showUntangle = currentGame === GAME_UNTANGLE;
+  const showCube = currentGame === GAME_CUBE;
   const showDuel = currentGame === GAME_DUEL;
   const showRoom = show2048 || showDuel;
   roomPanel.hidden = !showRoom;
@@ -780,6 +868,7 @@ function updateRoomActions() {
   gameFruitPanel.classList.toggle("is-hidden", !showFruit);
   gameDodgePanel.classList.toggle("is-hidden", !showDodge);
   gameUntanglePanel.classList.toggle("is-hidden", !showUntangle);
+  gameCubePanel.classList.toggle("is-hidden", !showCube);
   gameDuelPanel.classList.toggle("is-hidden", !showDuel);
 
   gameCards.forEach((card) => {
@@ -808,6 +897,9 @@ function updateRoomActions() {
   } else if (showUntangle) {
     untangleStatusText.textContent = getUntangleStatusText();
     renderUntangle();
+  } else if (showCube) {
+    cubeStatusText.textContent = getCubeStatusText();
+    renderCubePuzzle();
   } else if (showDuel) {
     renderDuel();
     updateDuelStatus();
@@ -834,7 +926,20 @@ function setActiveGame(gameId, options = {}) {
     fruitRunning = false;
   }
 
-  currentGame = [GAME_2048, GAME_MINESWEEPER, GAME_FLAPPY, GAME_FRUIT, GAME_DODGE, GAME_UNTANGLE, GAME_DUEL].includes(gameId)
+  if (currentGame === GAME_CUBE && gameId !== GAME_CUBE) {
+    stopCubeTimer();
+  }
+
+  currentGame = [
+    GAME_2048,
+    GAME_MINESWEEPER,
+    GAME_FLAPPY,
+    GAME_FRUIT,
+    GAME_DODGE,
+    GAME_UNTANGLE,
+    GAME_CUBE,
+    GAME_DUEL,
+  ].includes(gameId)
     ? gameId
     : GAME_2048;
 
@@ -1559,7 +1664,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 水果 ${player.stats.fruitmerge?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 水果 ${player.stats.fruitmerge?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 六面 ${player.stats.cubepuzzle?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
 
     info.append(name, meta);
 
@@ -4509,6 +4614,473 @@ async function settleUntangleGame(reason) {
   }
 }
 
+function createSolvedCubeCells() {
+  const cells = {};
+  let nextValue = 1;
+
+  cubeFaceOrder.forEach((face) => {
+    cells[face] = Array.from({ length: 9 }, (_, index) => {
+      if (face === "front" && index === 8) {
+        return null;
+      }
+
+      const value = nextValue;
+      nextValue += 1;
+      return value;
+    });
+  });
+
+  return cells;
+}
+
+function getCubeDifficulty() {
+  return cubeDifficulties[cubeDifficulty] || cubeDifficulties.normal;
+}
+
+function setCubeDifficulty(value) {
+  if (!cubeDifficulties[value]) {
+    return;
+  }
+
+  cubeDifficulty = value;
+  localStorage.setItem(cubeDifficultyKey, cubeDifficulty);
+  cubeDifficultySelect.value = cubeDifficulty;
+  startCubePuzzleGame();
+}
+
+function getCubeTargetValue(face, index) {
+  if (face === "front") {
+    return index === 8 ? null : index + 1;
+  }
+
+  const offsets = {
+    right: 9,
+    back: 18,
+    left: 27,
+    top: 36,
+    bottom: 45,
+  };
+
+  return (offsets[face] || 0) + index;
+}
+
+function cubePositionKey(position) {
+  return `${position.face}-${position.index}`;
+}
+
+function sameCubePosition(first, second) {
+  return first?.face === second?.face && first?.index === second?.index;
+}
+
+function cubePosition(face, row, column) {
+  return {
+    face,
+    index: row * 3 + column,
+  };
+}
+
+function getCubeNeighbor(position, direction) {
+  const row = Math.floor(position.index / 3);
+  const column = position.index % 3;
+
+  if (direction === "up" && row > 0) return cubePosition(position.face, row - 1, column);
+  if (direction === "down" && row < 2) return cubePosition(position.face, row + 1, column);
+  if (direction === "left" && column > 0) return cubePosition(position.face, row, column - 1);
+  if (direction === "right" && column < 2) return cubePosition(position.face, row, column + 1);
+
+  switch (position.face) {
+    case "front":
+      if (direction === "up") return cubePosition("top", 2, column);
+      if (direction === "down") return cubePosition("bottom", 0, column);
+      if (direction === "left") return cubePosition("left", row, 2);
+      if (direction === "right") return cubePosition("right", row, 0);
+      break;
+    case "right":
+      if (direction === "up") return cubePosition("top", column, 2);
+      if (direction === "down") return cubePosition("bottom", 2 - column, 2);
+      if (direction === "left") return cubePosition("front", row, 2);
+      if (direction === "right") return cubePosition("back", row, 0);
+      break;
+    case "back":
+      if (direction === "up") return cubePosition("top", 0, 2 - column);
+      if (direction === "down") return cubePosition("bottom", 2, 2 - column);
+      if (direction === "left") return cubePosition("right", row, 2);
+      if (direction === "right") return cubePosition("left", row, 0);
+      break;
+    case "left":
+      if (direction === "up") return cubePosition("top", 2 - column, 0);
+      if (direction === "down") return cubePosition("bottom", column, 0);
+      if (direction === "left") return cubePosition("back", row, 2);
+      if (direction === "right") return cubePosition("front", row, 0);
+      break;
+    case "top":
+      if (direction === "up") return cubePosition("back", 0, 2 - column);
+      if (direction === "down") return cubePosition("front", 0, column);
+      if (direction === "left") return cubePosition("left", 0, 2 - row);
+      if (direction === "right") return cubePosition("right", 0, row);
+      break;
+    case "bottom":
+      if (direction === "up") return cubePosition("front", 2, column);
+      if (direction === "down") return cubePosition("back", 2, 2 - column);
+      if (direction === "left") return cubePosition("left", 2, row);
+      if (direction === "right") return cubePosition("right", 2, 2 - row);
+      break;
+    default:
+      break;
+  }
+
+  return null;
+}
+
+function getCubeAdjacentPositions(position) {
+  return ["up", "right", "down", "left"]
+    .map((direction) => getCubeNeighbor(position, direction))
+    .filter(Boolean);
+}
+
+function getCubeCell(position) {
+  return cubeCells[position.face]?.[position.index] ?? null;
+}
+
+function setCubeCell(position, value) {
+  cubeCells[position.face][position.index] = value;
+}
+
+function swapCubeTileWithBlank(tilePosition) {
+  const tileValue = getCubeCell(tilePosition);
+
+  setCubeCell(cubeBlank, tileValue);
+  setCubeCell(tilePosition, null);
+  cubeBlank = { ...tilePosition };
+}
+
+function isCubeTileMovable(face, index) {
+  const value = cubeCells[face]?.[index];
+
+  if (value === null || value === undefined) {
+    return false;
+  }
+
+  return getCubeAdjacentPositions({ face, index }).some((position) =>
+    sameCubePosition(position, cubeBlank),
+  );
+}
+
+function countCubeMisplaced() {
+  return cubeFaceOrder.reduce((count, face) => {
+    return (
+      count +
+      cubeCells[face].filter((value, index) => value !== getCubeTargetValue(face, index)).length
+    );
+  }, 0);
+}
+
+function shuffleCubePuzzle(moveCount) {
+  let previousBlankKey = "";
+
+  for (let move = 0; move < moveCount; move += 1) {
+    const legalMoves = getCubeAdjacentPositions(cubeBlank).filter((position) => {
+      return getCubeCell(position) !== null && cubePositionKey(position) !== previousBlankKey;
+    });
+    const candidates = legalMoves.length > 0 ? legalMoves : getCubeAdjacentPositions(cubeBlank);
+    const next = candidates[Math.floor(Math.random() * candidates.length)];
+
+    previousBlankKey = cubePositionKey(cubeBlank);
+    swapCubeTileWithBlank(next);
+  }
+}
+
+function startCubeTimer() {
+  if (cubeTimerId) {
+    return;
+  }
+
+  cubeStartedAt = cubeStartedAt || Date.now();
+  cubeTimerId = window.setInterval(() => {
+    cubeSeconds = Math.floor((Date.now() - cubeStartedAt) / 1000);
+    updateCubeStatsDisplay();
+  }, 1000);
+}
+
+function stopCubeTimer() {
+  if (cubeTimerId) {
+    window.clearInterval(cubeTimerId);
+    cubeTimerId = null;
+  }
+}
+
+function startCubePuzzleGame(options = {}) {
+  stopCubeTimer();
+  cubeGameId = createGameId();
+  cubeCells = createSolvedCubeCells();
+  cubeBlank = { face: "front", index: 8 };
+  cubeMoves = 0;
+  cubeSeconds = 0;
+  cubeStartedAt = 0;
+  cubeSettled = false;
+  cubeSolved = false;
+
+  const difficulty = getCubeDifficulty();
+
+  do {
+    cubeCells = createSolvedCubeCells();
+    cubeBlank = { face: "front", index: 8 };
+    shuffleCubePuzzle(difficulty.scrambleMoves);
+    cubeMisplaced = countCubeMisplaced();
+  } while (cubeMisplaced === 0);
+
+  cubeStatusText.textContent = options.readyText || getCubeStatusText();
+  renderCubePuzzle();
+}
+
+function getCubeStatusText() {
+  const difficulty = getCubeDifficulty();
+
+  if (cubeSolved) {
+    return text.cubeWin;
+  }
+
+  return `${difficulty.label}难度：由完成状态随机移动 ${difficulty.scrambleMoves} 步生成，剩余 ${cubeMisplaced} 个位置未复原。${text.cubeReady}`;
+}
+
+function updateCubeStatsDisplay() {
+  cubeMisplaced = countCubeMisplaced();
+  cubeMisplacedElement.textContent = String(cubeMisplaced);
+  cubeMovesElement.textContent = String(cubeMoves);
+  cubeTimeElement.textContent = `${cubeSeconds}s`;
+  cubeBestElement.textContent = cubeBest > 0 ? String(cubeBest) : "0";
+}
+
+function renderCubePuzzle() {
+  updateCubeStatsDisplay();
+  cubeStage.innerHTML = "";
+  cubeStage.classList.toggle("is-flat", cubeFlatMode);
+
+  if (cubeFlatMode) {
+    const layout = document.createElement("div");
+
+    layout.className = "cube-plane-layout";
+    cubeFaceOrder.forEach((face) => {
+      layout.appendChild(createCubeFaceElement(face));
+    });
+    cubeStage.appendChild(layout);
+    return;
+  }
+
+  const scene = document.createElement("div");
+  const cube = document.createElement("div");
+
+  scene.className = "cube-puzzle-scene";
+  cube.className = "cube-puzzle-cube";
+  cubeFaceOrder.forEach((face) => {
+    cube.appendChild(createCubeFaceElement(face));
+  });
+  scene.appendChild(cube);
+  cubeStage.appendChild(scene);
+  applyCubeRotation();
+}
+
+function createCubeFaceElement(face) {
+  const faceElement = document.createElement("section");
+  const title = document.createElement("div");
+  const titleText = document.createElement("span");
+  const titleMeta = document.createElement("span");
+  const grid = document.createElement("div");
+  const correctCount = cubeCells[face].filter((value, index) => value === getCubeTargetValue(face, index)).length;
+
+  faceElement.className = "cube-puzzle-face";
+  faceElement.dataset.face = face;
+  title.className = "cube-face-title";
+  titleText.textContent = cubeFaceLabels[face];
+  titleMeta.textContent = `${cubeFaceShortLabels[face]} · ${correctCount}/9`;
+  title.append(titleText, titleMeta);
+  grid.className = "cube-face-grid";
+
+  cubeCells[face].forEach((value, index) => {
+    const tile = document.createElement("button");
+    const position = { face, index };
+    const movable = isCubeTileMovable(face, index);
+    const targetValue = getCubeTargetValue(face, index);
+
+    tile.type = "button";
+    tile.className = "cube-tile";
+    tile.dataset.face = face;
+    tile.dataset.index = String(index);
+    tile.textContent = value === null ? "" : String(value);
+    tile.classList.toggle("is-empty", value === null);
+    tile.classList.toggle("is-movable", movable);
+    tile.classList.toggle("is-correct", value === targetValue);
+    tile.classList.toggle("is-wrong", value !== null && value !== targetValue);
+    tile.setAttribute(
+      "aria-label",
+      value === null
+        ? `${cubeFaceLabels[face]}空格`
+        : `${cubeFaceLabels[face]}数字 ${value}${movable ? "，可移动" : ""}`,
+    );
+    grid.appendChild(tile);
+  });
+
+  faceElement.append(title, grid);
+  return faceElement;
+}
+
+function applyCubeRotation() {
+  const cube = cubeStage.querySelector(".cube-puzzle-cube");
+
+  if (!cube) {
+    return;
+  }
+
+  cube.style.transform = `rotateX(${cubeRotationX}deg) rotateY(${cubeRotationY}deg)`;
+}
+
+function setCubeView(face) {
+  const rotations = {
+    front: [0, 0],
+    right: [0, -90],
+    back: [0, 180],
+    left: [0, 90],
+    top: [-90, 0],
+    bottom: [90, 0],
+  };
+  const [nextX, nextY] = rotations[face] || rotations.front;
+
+  cubeRotationX = nextX;
+  cubeRotationY = nextY;
+  applyCubeRotation();
+}
+
+function moveCubeTile(face, index) {
+  if (cubeSolved || !isCubeTileMovable(face, index)) {
+    return;
+  }
+
+  if (!cubeStartedAt) {
+    startCubeTimer();
+  }
+
+  swapCubeTileWithBlank({ face, index });
+  cubeMoves += 1;
+  cubeMisplaced = countCubeMisplaced();
+
+  if (cubeMisplaced === 0) {
+    finishCubePuzzleGame();
+    return;
+  }
+
+  cubeStatusText.textContent = getCubeStatusText();
+  renderCubePuzzle();
+}
+
+function finishCubePuzzleGame() {
+  cubeSolved = true;
+  stopCubeTimer();
+  cubeSeconds = cubeStartedAt ? Math.floor((Date.now() - cubeStartedAt) / 1000) : cubeSeconds;
+
+  if (cubeMoves > 0 && (cubeBest === 0 || cubeMoves < cubeBest)) {
+    cubeBest = cubeMoves;
+    localStorage.setItem(cubeBestKey, String(cubeBest));
+  }
+
+  cubeStatusText.textContent = text.cubeWin;
+  renderCubePuzzle();
+  settleCubePuzzleGame();
+}
+
+async function settleCubePuzzleGame() {
+  if (!hasAccount() || cubeSettled || !cubeSolved || cubeMoves === 0) {
+    return;
+  }
+
+  cubeSettled = true;
+  const difficulty = getCubeDifficulty();
+
+  try {
+    const data = await apiRequest("/api/games/cube-puzzle/results", {
+      method: "POST",
+      body: JSON.stringify({
+        gameId: cubeGameId,
+        won: true,
+        difficulty: cubeDifficulty,
+        moves: cubeMoves,
+        seconds: cubeSeconds,
+        scrambleMoves: difficulty.scrambleMoves,
+        misplaced: cubeMisplaced,
+      }),
+    });
+
+    renderAccount(data.profile);
+    await refreshLeaderboard(data.leaderboard);
+    cubeStatusText.textContent = `立方体已复原，用了 ${cubeMoves} 步，获得 ${data.award.points} 积分。`;
+  } catch (error) {
+    cubeStatusText.textContent = error.message;
+    cubeSettled = false;
+  }
+}
+
+function handleCubeStageClick(event) {
+  const tile = event.target.closest(".cube-tile");
+
+  if (!tile || cubeDragMoved) {
+    return;
+  }
+
+  moveCubeTile(tile.dataset.face, Number(tile.dataset.index));
+}
+
+function handleCubePointerDown(event) {
+  if (cubeFlatMode || event.button !== 0) {
+    return;
+  }
+
+  cubeDragging = true;
+  cubeDragMoved = false;
+  cubeDragX = event.clientX;
+  cubeDragY = event.clientY;
+  cubeStage.setPointerCapture(event.pointerId);
+}
+
+function handleCubePointerMove(event) {
+  if (!cubeDragging || cubeFlatMode) {
+    return;
+  }
+
+  const deltaX = event.clientX - cubeDragX;
+  const deltaY = event.clientY - cubeDragY;
+
+  if (Math.abs(deltaX) + Math.abs(deltaY) > 3) {
+    cubeDragMoved = true;
+  }
+
+  cubeRotationY += deltaX * 0.42;
+  cubeRotationX = Math.max(-82, Math.min(82, cubeRotationX - deltaY * 0.42));
+  cubeDragX = event.clientX;
+  cubeDragY = event.clientY;
+  applyCubeRotation();
+}
+
+function handleCubePointerUp(event) {
+  if (!cubeDragging) {
+    return;
+  }
+
+  cubeDragging = false;
+  try {
+    cubeStage.releasePointerCapture(event.pointerId);
+  } catch {
+    // pointer capture may already be released
+  }
+
+  window.setTimeout(() => {
+    cubeDragMoved = false;
+  }, 0);
+}
+
+function handleCubeLayoutChange() {
+  cubeFlatMode = cubeLayoutQuery.matches;
+  renderCubePuzzle();
+}
+
 function renderMinesweeperStats() {
   const config = getMineDifficulty();
   mineRemainingElement.textContent = String(Math.max(0, mineCount - mineFlags));
@@ -5617,6 +6189,9 @@ dodgeDifficultySelect.addEventListener("change", () => {
 untangleDifficultySelect.addEventListener("change", () => {
   setUntangleDifficulty(untangleDifficultySelect.value);
 });
+cubeDifficultySelect.addEventListener("change", () => {
+  setCubeDifficulty(cubeDifficultySelect.value);
+});
 flappyRestartButton.addEventListener("click", () => {
   if (flappyRunning) {
     resetFlappyGame();
@@ -5640,6 +6215,10 @@ untangleRestartButton.addEventListener("click", () => {
   startUntangleGame();
 });
 untangleUndoButton.addEventListener("click", undoUntangleMove);
+cubeRestartButton.addEventListener("click", () => startCubePuzzleGame());
+cubeViewButtons.forEach((button) => {
+  button.addEventListener("click", () => setCubeView(button.dataset.cubeView));
+});
 duelStartButton.addEventListener("click", requestDuelStart);
 duelServeButton.addEventListener("click", requestDuelServe);
 messageButton.addEventListener("click", hideMessageAndContinue);
@@ -5685,6 +6264,11 @@ untangleCanvas.addEventListener("pointerdown", handleUntanglePointerDown);
 untangleCanvas.addEventListener("pointermove", handleUntanglePointerMove);
 untangleCanvas.addEventListener("pointerup", handleUntanglePointerUp);
 untangleCanvas.addEventListener("pointercancel", handleUntanglePointerCancel);
+cubeStage.addEventListener("click", handleCubeStageClick);
+cubeStage.addEventListener("pointerdown", handleCubePointerDown);
+cubeStage.addEventListener("pointermove", handleCubePointerMove);
+cubeStage.addEventListener("pointerup", handleCubePointerUp);
+cubeStage.addEventListener("pointercancel", handleCubePointerUp);
 duelCanvas.addEventListener("pointerdown", (event) => {
   if (currentGame !== GAME_DUEL) {
     return;
@@ -5739,6 +6323,11 @@ if (typeof untangleLayoutQuery.addEventListener === "function") {
 } else {
   untangleLayoutQuery.addListener(handleUntangleLayoutChange);
 }
+if (typeof cubeLayoutQuery.addEventListener === "function") {
+  cubeLayoutQuery.addEventListener("change", handleCubeLayoutChange);
+} else {
+  cubeLayoutQuery.addListener(handleCubeLayoutChange);
+}
 window.addEventListener("resize", () => {
   if (mineBoard.length > 0) {
     renderMinesweeperBoard();
@@ -5754,6 +6343,7 @@ applyUntangleCanvasLayout({ scaleExisting: false });
 mineDifficultySelect.value = mineDifficulty;
 dodgeDifficultySelect.value = dodgeDifficulty;
 untangleDifficultySelect.value = untangleDifficulty;
+cubeDifficultySelect.value = cubeDifficulty;
 setupMinesweeperMarkup();
 board = createEmptyBoard();
 mineBoard = createMineBoard();
@@ -5762,6 +6352,7 @@ resetFlappyGame();
 resetFruitGame();
 resetDodgeGame();
 startUntangleGame({ notify: false, settlePrevious: false });
+startCubePuzzleGame({ readyText: text.cubeReady });
 renderDuel();
 start2048Game({ notify: false, settlePrevious: false });
 loadSession();
