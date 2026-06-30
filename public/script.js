@@ -112,6 +112,10 @@ const cubeMisplacedElement = document.querySelector("#cube-misplaced");
 const cubeMovesElement = document.querySelector("#cube-moves");
 const cubeTimeElement = document.querySelector("#cube-time");
 const cubeBestElement = document.querySelector("#cube-best");
+const cubeTargetButton = document.querySelector("#cube-target-button");
+const cubeTargetPanel = document.querySelector("#cube-target-panel");
+const cubeTargetClose = document.querySelector("#cube-target-close");
+const cubeTargetLayout = document.querySelector("#cube-target-layout");
 const cubeViewButtons = Array.from(document.querySelectorAll("[data-cube-view]"));
 const duelCanvas = document.querySelector("#duel-canvas");
 const duelContext = duelCanvas.getContext("2d");
@@ -154,7 +158,7 @@ const announcements = [];
 const changelogEntries = [
   {
     title: "新增六面华容道",
-    body: "加入 3D 立方体数字华容道，电脑端可拖动旋转立方体，手机端显示 3 行 2 列六面联动平面。",
+    body: "加入 3D 立方体数字华容道，电脑端可拖动旋转立方体，手机端显示 3 行 2 列六面联动平面，并提供目标布局参考窗。",
   },
   {
     title: "合成水果尺寸微调",
@@ -4926,6 +4930,47 @@ function createCubeFaceElement(face) {
   return faceElement;
 }
 
+function renderCubeTargetLayout() {
+  cubeTargetLayout.innerHTML = "";
+
+  cubeFaceOrder.forEach((face) => {
+    const faceElement = document.createElement("section");
+    const title = document.createElement("div");
+    const titleText = document.createElement("span");
+    const titleMeta = document.createElement("span");
+    const grid = document.createElement("div");
+
+    faceElement.className = "cube-target-face";
+    title.className = "cube-face-title";
+    titleText.textContent = cubeFaceLabels[face];
+    titleMeta.textContent = cubeFaceShortLabels[face];
+    title.append(titleText, titleMeta);
+    grid.className = "cube-target-grid";
+
+    for (let index = 0; index < 9; index += 1) {
+      const value = getCubeTargetValue(face, index);
+      const cell = document.createElement("span");
+
+      cell.className = "cube-target-cell";
+      cell.classList.toggle("is-empty", value === null);
+      cell.textContent = value === null ? "□" : String(value);
+      grid.appendChild(cell);
+    }
+
+    faceElement.append(title, grid);
+    cubeTargetLayout.appendChild(faceElement);
+  });
+}
+
+function openCubeTargetPanel() {
+  renderCubeTargetLayout();
+  cubeTargetPanel.hidden = false;
+}
+
+function closeCubeTargetPanel() {
+  cubeTargetPanel.hidden = true;
+}
+
 function applyCubeRotation() {
   const cube = cubeStage.querySelector(".cube-puzzle-cube");
 
@@ -6236,6 +6281,13 @@ untangleRestartButton.addEventListener("click", () => {
 });
 untangleUndoButton.addEventListener("click", undoUntangleMove);
 cubeRestartButton.addEventListener("click", () => startCubePuzzleGame());
+cubeTargetButton.addEventListener("click", openCubeTargetPanel);
+cubeTargetClose.addEventListener("click", closeCubeTargetPanel);
+cubeTargetPanel.addEventListener("click", (event) => {
+  if (event.target === cubeTargetPanel) {
+    closeCubeTargetPanel();
+  }
+});
 cubeViewButtons.forEach((button) => {
   button.addEventListener("click", () => setCubeView(button.dataset.cubeView));
 });

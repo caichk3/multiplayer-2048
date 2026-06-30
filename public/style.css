@@ -2035,6 +2035,72 @@ h2 {
   box-shadow: none;
 }
 
+.cube-target-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 58;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(24, 33, 42, 0.38);
+  backdrop-filter: blur(2px);
+}
+
+.cube-target-panel[hidden] {
+  display: none;
+}
+
+.cube-target-card {
+  width: min(94vw, 780px);
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 70px rgba(24, 33, 42, 0.24);
+}
+
+.cube-target-layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cube-target-face {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(24, 33, 42, 0.14);
+  border-radius: 8px;
+  background: #f7faf8;
+}
+
+.cube-target-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.cube-target-cell {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  border: 1px solid rgba(24, 33, 42, 0.14);
+  border-radius: 6px;
+  background: #ffffff;
+  color: var(--ink);
+  font-size: clamp(0.75rem, 2vw, 1.05rem);
+  font-weight: 900;
+}
+
+.cube-target-cell.is-empty {
+  border-style: dashed;
+  background: rgba(24, 124, 104, 0.1);
+  color: var(--accent-dark);
+}
+
 .player-row {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -2269,6 +2335,10 @@ h2 {
 
   .cube-puzzle-stage {
     width: 100%;
+  }
+
+  .cube-target-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .duel-touch-controls {

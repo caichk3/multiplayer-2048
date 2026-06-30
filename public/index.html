@@ -620,11 +620,28 @@
                 <button type="button" data-cube-view="top">上</button>
                 <button type="button" data-cube-view="bottom">下</button>
               </div>
+              <button id="cube-target-button" class="secondary-button" type="button">目标布局</button>
               <button id="cube-restart-button" type="button">重新开局</button>
             </div>
           </div>
 
           <div id="cube-puzzle-stage" class="cube-puzzle-stage" aria-label="六面华容道游戏区域"></div>
+
+          <div id="cube-target-panel" class="cube-target-panel" hidden>
+            <div class="cube-target-card" role="dialog" aria-modal="true" aria-label="六面华容道目标布局">
+              <div class="panel-floating-head">
+                <div>
+                  <p class="eyebrow">Target</p>
+                  <h2>目标布局</h2>
+                </div>
+                <button id="cube-target-close" class="panel-close" type="button" aria-label="关闭目标布局">
+                  ×
+                </button>
+              </div>
+
+              <div id="cube-target-layout" class="cube-target-layout"></div>
+            </div>
+          </div>
         </section>
 
         <section class="game-panel game-view is-hidden" id="game-paddleduel" aria-label="挡板弹球">
