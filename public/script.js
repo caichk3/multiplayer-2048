@@ -157,6 +157,10 @@ const maxInfoEntries = 10;
 const announcements = [];
 const changelogEntries = [
   {
+    title: "优化六面华容道界面",
+    body: "收细立方体和数字块边框，降低厚重阴影，拖动旋转更跟手，并为数字移动加入轻量落位动画。",
+  },
+  {
     title: "新增六面华容道",
     body: "加入 3D 立方体数字华容道，电脑端可拖动旋转立方体，手机端显示 3 行 2 列六面联动平面，并提供目标布局参考窗。",
   },
@@ -608,6 +612,8 @@ let cubeDragY = 0;
 let cubeDragMoved = false;
 let cubePointerTile = null;
 let cubeSuppressNextClick = false;
+let cubeRecentMoveKey = "";
+let cubeRecentMoveValue = null;
 let duelState = null;
 let duelSide = "";
 let duelInputDirection = 0;
@@ -4861,6 +4867,7 @@ function renderCubePuzzle() {
   updateCubeStatsDisplay();
   cubeStage.innerHTML = "";
   cubeStage.classList.toggle("is-flat", cubeFlatMode);
+  cubeStage.classList.toggle("is-dragging", cubeDragging);
 
   if (cubeFlatMode) {
     const layout = document.createElement("div");
@@ -4870,6 +4877,8 @@ function renderCubePuzzle() {
       layout.appendChild(createCubeFaceElement(face));
     });
     cubeStage.appendChild(layout);
+    cubeRecentMoveKey = "";
+    cubeRecentMoveValue = null;
     return;
   }
 
@@ -4884,6 +4893,8 @@ function renderCubePuzzle() {
   scene.appendChild(cube);
   cubeStage.appendChild(scene);
   applyCubeRotation();
+  cubeRecentMoveKey = "";
+  cubeRecentMoveValue = null;
 }
 
 function createCubeFaceElement(face) {
@@ -4917,6 +4928,12 @@ function createCubeFaceElement(face) {
     tile.classList.toggle("is-movable", movable);
     tile.classList.toggle("is-correct", value === targetValue);
     tile.classList.toggle("is-wrong", value !== null && value !== targetValue);
+    tile.classList.toggle(
+      "is-recent",
+      value !== null &&
+        value === cubeRecentMoveValue &&
+        cubePositionKey(position) === cubeRecentMoveKey,
+    );
     tile.setAttribute(
       "aria-label",
       value === null
@@ -5009,7 +5026,12 @@ function moveCubeTile(face, index) {
     startCubeTimer();
   }
 
+  const previousBlank = { ...cubeBlank };
+  const movedValue = getCubeCell({ face, index });
+
   swapCubeTileWithBlank({ face, index });
+  cubeRecentMoveKey = cubePositionKey(previousBlank);
+  cubeRecentMoveValue = movedValue;
   cubeMoves += 1;
   cubeMisplaced = countCubeMisplaced();
 
@@ -5093,6 +5115,7 @@ function handleCubePointerDown(event) {
   cubePointerTile = event.target.closest(".cube-tile");
   cubeDragX = event.clientX;
   cubeDragY = event.clientY;
+  cubeStage.classList.add("is-dragging");
   cubeStage.setPointerCapture(event.pointerId);
 }
 
@@ -5125,6 +5148,7 @@ function handleCubePointerUp(event) {
 
   cubeDragging = false;
   cubePointerTile = null;
+  cubeStage.classList.remove("is-dragging");
   try {
     cubeStage.releasePointerCapture(event.pointerId);
   } catch {
