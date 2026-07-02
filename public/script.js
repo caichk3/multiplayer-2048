@@ -154,7 +154,12 @@ const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)"
 const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const cubeLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const maxInfoEntries = 10;
-const announcements = [];
+const announcements = [
+  {
+    title: "测试提醒",
+    body: "“六面华容道”尚处于测试阶段。",
+  },
+];
 const changelogEntries = [
   {
     title: "优化六面华容道界面",
