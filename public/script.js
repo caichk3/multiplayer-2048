@@ -164,6 +164,8 @@ const cubeBestKey = "class-arcade-cube-best";
 const mineLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const untangleLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const cubeLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
+const circuitLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
+const circuitReducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 const maxInfoEntries = 10;
 const announcements = [
   {
@@ -172,6 +174,10 @@ const announcements = [
   },
 ];
 const changelogEntries = [
+  {
+    title: "红蓝电路视觉优化",
+    body: "重绘灯泡、电线和锁定标记，并加入只在点灯瞬间播放的轻量脉冲动效，移动端不会持续渲染消耗性能。",
+  },
   {
     title: "红蓝电路加入选点锁定",
     body: "红蓝电路中每个灯现在只能被主动选择一次，但仍可被相连灯影响翻色，避免双方反复点击同一个核心灯。",
@@ -645,6 +651,9 @@ let duelRenderFrameId = null;
 let circuitState = null;
 let circuitSide = "";
 let circuitRenderFrameId = null;
+let circuitAnimationStartedAt = 0;
+let circuitAnimatedMoveKey = "";
+const circuitAnimationDuration = 360;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
@@ -2185,18 +2194,61 @@ function requestCircuitStart() {
   });
 }
 
-function scheduleCircuitRender() {
+function scheduleCircuitRender(options = {}) {
   if (circuitRenderFrameId) {
     return;
   }
 
   circuitRenderFrameId = window.requestAnimationFrame(() => {
     circuitRenderFrameId = null;
-    renderCircuit();
+    renderCircuit(options);
   });
 }
 
-function renderCircuit() {
+function getCircuitMoveKey(state = circuitState) {
+  const move = state?.lastMove;
+
+  if (!move) {
+    return "";
+  }
+
+  return `${move.side}:${move.nodeId}:${move.at}`;
+}
+
+function startCircuitMoveAnimation(state = circuitState) {
+  if (circuitReducedMotionQuery.matches) {
+    return;
+  }
+
+  const moveKey = getCircuitMoveKey(state);
+
+  if (!moveKey || moveKey === circuitAnimatedMoveKey) {
+    return;
+  }
+
+  circuitAnimatedMoveKey = moveKey;
+  circuitAnimationStartedAt = performance.now();
+}
+
+function getCircuitAnimationProgress() {
+  if (!circuitAnimationStartedAt) {
+    return 1;
+  }
+
+  const progress = Math.min(1, (performance.now() - circuitAnimationStartedAt) / circuitAnimationDuration);
+
+  if (progress >= 1) {
+    circuitAnimationStartedAt = 0;
+  }
+
+  return progress;
+}
+
+function easeCircuitPulse(progress) {
+  return 1 - Math.pow(1 - progress, 3);
+}
+
+function renderCircuit(options = {}) {
   const context = circuitContext;
   const width = circuitCanvas.width;
   const height = circuitCanvas.height;
@@ -2207,46 +2259,63 @@ function renderCircuit() {
   const stateHeight = state.height || height;
   const scaleX = width / stateWidth;
   const scaleY = height / stateHeight;
+  const animationProgress = getCircuitAnimationProgress();
 
-  updateCircuitStatus();
+  if (!options.skipStatus) {
+    updateCircuitStatus();
+  }
+
   context.clearRect(0, 0, width, height);
   drawCircuitBackground(context, width, height);
 
   context.save();
   context.scale(scaleX, scaleY);
-  drawCircuitEdges(context, nodes, edges, state);
-  drawCircuitNodes(context, nodes, state);
+  drawCircuitEdges(context, nodes, edges, state, animationProgress);
+  drawCircuitNodes(context, nodes, state, animationProgress);
   context.restore();
   drawCircuitOverlay(context, state);
+
+  if (animationProgress < 1) {
+    scheduleCircuitRender({ skipStatus: true });
+  }
 }
 
 function drawCircuitBackground(context, width, height) {
   const gradient = context.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#f8faf6");
-  gradient.addColorStop(0.5, "#edf5f2");
-  gradient.addColorStop(1, "#f8f1e8");
+  gradient.addColorStop(0, "#fbfcf8");
+  gradient.addColorStop(0.48, "#eef6f2");
+  gradient.addColorStop(1, "#f7f0e6");
   context.fillStyle = gradient;
   context.fillRect(0, 0, width, height);
 
-  context.strokeStyle = "rgba(24, 124, 104, 0.08)";
+  context.strokeStyle = "rgba(24, 124, 104, 0.06)";
   context.lineWidth = 1;
-  for (let x = 30; x < width; x += 30) {
+  for (let x = 30; x < width; x += 36) {
     context.beginPath();
     context.moveTo(x, 0);
     context.lineTo(x, height);
     context.stroke();
   }
 
-  for (let y = 30; y < height; y += 30) {
+  for (let y = 30; y < height; y += 36) {
     context.beginPath();
     context.moveTo(0, y);
     context.lineTo(width, y);
     context.stroke();
   }
+
+  context.strokeStyle = "rgba(255, 255, 255, 0.68)";
+  context.lineWidth = 2;
+  context.strokeRect(12, 12, width - 24, height - 24);
 }
 
-function drawCircuitEdges(context, nodes, edges, state) {
+function drawCircuitEdges(context, nodes, edges, state, animationProgress) {
   const lastNodeId = state.lastMove?.nodeId;
+  const pulse = 1 - animationProgress;
+  const easedProgress = easeCircuitPulse(animationProgress);
+  const lightMode = circuitLightModeQuery.matches;
+
+  context.lineCap = "round";
   edges.forEach((edge) => {
     const start = nodes[edge.a];
     const end = nodes[edge.b];
@@ -2258,67 +2327,220 @@ function drawCircuitEdges(context, nodes, edges, state) {
     const isHot = start.id === lastNodeId || end.id === lastNodeId;
     const startLit = start.color && start.color !== "off";
     const endLit = end.color && end.color !== "off";
-    context.strokeStyle = isHot
-      ? "rgba(214, 134, 49, 0.86)"
-      : startLit || endLit
-        ? "rgba(24, 33, 42, 0.46)"
-        : "rgba(24, 33, 42, 0.2)";
-    context.lineWidth = isHot ? 3.8 : 2.2;
+
+    context.strokeStyle = "rgba(255, 255, 255, 0.72)";
+    context.lineWidth = isHot ? 7 : 5;
     context.beginPath();
     context.moveTo(start.x, start.y);
     context.lineTo(end.x, end.y);
     context.stroke();
+
+    context.strokeStyle = isHot
+      ? "rgba(214, 134, 49, 0.74)"
+      : startLit || endLit
+        ? "rgba(73, 93, 99, 0.5)"
+        : "rgba(91, 105, 113, 0.24)";
+    context.lineWidth = isHot ? 3.2 : 2.2;
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+
+    if (isHot && pulse > 0 && !lightMode) {
+      const color = getCircuitSideColor(state.lastMove?.side);
+      const sparkX = start.x + (end.x - start.x) * easedProgress;
+      const sparkY = start.y + (end.y - start.y) * easedProgress;
+      const sparkRadius = 2.5 + pulse * 3.5;
+
+      context.fillStyle = color;
+      context.globalAlpha = 0.24 + pulse * 0.44;
+      context.beginPath();
+      context.arc(sparkX, sparkY, sparkRadius, 0, Math.PI * 2);
+      context.fill();
+      context.globalAlpha = 1;
+    }
   });
+
+  context.lineCap = "butt";
 }
 
-function drawCircuitNodes(context, nodes, state) {
+function drawCircuitNodes(context, nodes, state, animationProgress) {
   const radius = getCircuitNodeRadius(nodes.length);
   const lastNodeId = state.lastMove?.nodeId;
   const myTurn = state.active && circuitSide && circuitSide === state.currentTurn;
+  const affectedNodes = getCircuitAffectedNodeIds(state);
+  const pulse = 1 - animationProgress;
+  const lightMode = circuitLightModeQuery.matches;
 
   nodes.forEach((node) => {
     const isLit = node.color && node.color !== "off";
     const isLast = node.id === lastNodeId;
     const isPicked = Boolean(node.pickedBy);
-    const fill = getCircuitSideColor(node.color);
+    const isAffected = affectedNodes.has(node.id);
+    const nodeRadius = isLast && pulse > 0 ? radius + pulse * 2.4 : radius;
 
     context.save();
-    if (isLit) {
-      context.shadowColor = node.color === "red"
-        ? "rgba(217, 79, 91, 0.52)"
-        : "rgba(44, 111, 187, 0.5)";
-      context.shadowBlur = isLast ? 18 : 10;
+    if (isLit && !lightMode) {
+      context.shadowColor = getCircuitGlowColor(node.color);
+      context.shadowBlur = isLast ? 18 + pulse * 10 : isAffected ? 12 : 7;
     }
 
-    context.fillStyle = isLit ? fill : "#f7faf8";
+    if (isLast && pulse > 0) {
+      drawCircuitPulseRing(context, node, radius, state.lastMove?.side, animationProgress);
+    }
+
+    drawCircuitLampSocket(context, node, nodeRadius, myTurn && !isPicked);
+    drawCircuitLampBulb(context, node, nodeRadius, node.color || "off", isAffected ? pulse : 0);
+
     context.strokeStyle = isLast
       ? "#d68631"
       : myTurn
-        ? "rgba(24, 124, 104, 0.5)"
-        : "rgba(24, 33, 42, 0.18)";
-    context.lineWidth = isLast ? 4 : 2;
+        ? "rgba(24, 124, 104, 0.34)"
+        : "rgba(24, 33, 42, 0.12)";
+    context.lineWidth = isLast ? 2.6 : 1.4;
     context.beginPath();
-    context.arc(node.x, node.y, radius, 0, Math.PI * 2);
-    context.fill();
+    context.arc(node.x, node.y, nodeRadius + 0.5, 0, Math.PI * 2);
     context.stroke();
     context.shadowBlur = 0;
 
     if (isPicked) {
-      context.setLineDash([4, 4]);
-      context.strokeStyle = getCircuitSideColor(node.pickedBy);
-      context.lineWidth = 1.8;
-      context.beginPath();
-      context.arc(node.x, node.y, radius + 5, 0, Math.PI * 2);
-      context.stroke();
-      context.setLineDash([]);
+      drawCircuitPickedMark(context, node, nodeRadius, node.pickedBy);
     }
 
-    context.fillStyle = isLit ? "rgba(255, 255, 255, 0.86)" : "rgba(24, 33, 42, 0.2)";
-    context.beginPath();
-    context.arc(node.x - radius * 0.34, node.y - radius * 0.38, radius * 0.26, 0, Math.PI * 2);
-    context.fill();
     context.restore();
   });
+}
+
+function getCircuitGlowColor(side) {
+  if (side === "red") {
+    return "rgba(217, 79, 91, 0.52)";
+  }
+
+  if (side === "blue") {
+    return "rgba(44, 111, 187, 0.5)";
+  }
+
+  return "rgba(24, 33, 42, 0.12)";
+}
+
+function getCircuitLampGradient(context, node, radius, side, pulse) {
+  const gradient = context.createRadialGradient(
+    node.x - radius * 0.38,
+    node.y - radius * 0.42,
+    radius * 0.12,
+    node.x,
+    node.y,
+    radius * (1.08 + pulse * 0.12),
+  );
+
+  if (side === "red") {
+    gradient.addColorStop(0, "#fff5f5");
+    gradient.addColorStop(0.34, "#f4878e");
+    gradient.addColorStop(1, "#b83445");
+  } else if (side === "blue") {
+    gradient.addColorStop(0, "#f1f7ff");
+    gradient.addColorStop(0.36, "#6da4e8");
+    gradient.addColorStop(1, "#24569a");
+  } else {
+    gradient.addColorStop(0, "#ffffff");
+    gradient.addColorStop(0.55, "#dde7e2");
+    gradient.addColorStop(1, "#a8b5af");
+  }
+
+  return gradient;
+}
+
+function drawCircuitLampSocket(context, node, radius, isSelectable) {
+  const socketGradient = context.createRadialGradient(
+    node.x - radius * 0.24,
+    node.y - radius * 0.32,
+    radius * 0.2,
+    node.x,
+    node.y,
+    radius * 1.36,
+  );
+  socketGradient.addColorStop(0, "#ffffff");
+  socketGradient.addColorStop(0.52, isSelectable ? "#d8eee5" : "#e8ece7");
+  socketGradient.addColorStop(1, "#aab8b1");
+
+  context.fillStyle = socketGradient;
+  context.beginPath();
+  context.arc(node.x, node.y, radius + 4.4, 0, Math.PI * 2);
+  context.fill();
+}
+
+function drawCircuitLampBulb(context, node, radius, side, pulse) {
+  context.fillStyle = getCircuitLampGradient(context, node, radius, side, pulse);
+  context.beginPath();
+  context.arc(node.x, node.y, radius, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = side === "off" ? "rgba(24, 33, 42, 0.14)" : "rgba(255, 255, 255, 0.56)";
+  context.lineWidth = 1.1;
+  context.beginPath();
+  context.arc(node.x, node.y, radius - 1.2, 0, Math.PI * 2);
+  context.stroke();
+
+  context.fillStyle = side === "off" ? "rgba(255, 255, 255, 0.68)" : "rgba(255, 255, 255, 0.78)";
+  context.beginPath();
+  context.ellipse(
+    node.x - radius * 0.32,
+    node.y - radius * 0.42,
+    radius * 0.26,
+    radius * 0.16,
+    -0.6,
+    0,
+    Math.PI * 2,
+  );
+  context.fill();
+}
+
+function drawCircuitPickedMark(context, node, radius, side) {
+  const color = getCircuitSideColor(side);
+  context.strokeStyle = color;
+  context.lineWidth = 2;
+  context.globalAlpha = 0.82;
+  context.beginPath();
+  context.arc(node.x, node.y, radius + 6, Math.PI * 1.05, Math.PI * 1.92);
+  context.stroke();
+
+  context.fillStyle = color;
+  context.beginPath();
+  context.arc(node.x + radius * 0.5, node.y - radius * 0.86, 2.2, 0, Math.PI * 2);
+  context.fill();
+  context.globalAlpha = 1;
+}
+
+function drawCircuitPulseRing(context, node, radius, side, progress) {
+  const eased = easeCircuitPulse(progress);
+  const alpha = Math.max(0, 1 - progress);
+  context.strokeStyle = getCircuitSideColor(side);
+  context.lineWidth = 2.4;
+  context.globalAlpha = alpha * 0.48;
+  context.beginPath();
+  context.arc(node.x, node.y, radius + 8 + eased * 22, 0, Math.PI * 2);
+  context.stroke();
+  context.globalAlpha = 1;
+}
+
+function getCircuitAffectedNodeIds(state) {
+  const affected = new Set();
+  const nodeId = state?.lastMove?.nodeId;
+
+  if (!Number.isInteger(nodeId)) {
+    return affected;
+  }
+
+  affected.add(nodeId);
+  (state.edges || []).forEach((edge) => {
+    if (edge.a === nodeId) {
+      affected.add(edge.b);
+    } else if (edge.b === nodeId) {
+      affected.add(edge.a);
+    }
+  });
+
+  return affected;
 }
 
 function drawCircuitOverlay(context, state) {
@@ -6696,6 +6918,7 @@ socket.on("duel:ended", async (payload = {}) => {
 });
 
 socket.on("circuit:update", (state) => {
+  startCircuitMoveAnimation(state);
   circuitState = state;
   circuitSide = getCircuitSide();
   scheduleCircuitRender();
@@ -6703,7 +6926,9 @@ socket.on("circuit:update", (state) => {
 });
 
 socket.on("circuit:ended", async (payload = {}) => {
-  circuitState = payload.state || circuitState;
+  const nextState = payload.state || circuitState;
+  startCircuitMoveAnimation(nextState);
+  circuitState = nextState;
   circuitSide = getCircuitSide();
   scheduleCircuitRender();
   updateCircuitStatus();

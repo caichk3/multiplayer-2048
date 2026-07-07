@@ -1831,10 +1831,10 @@ h2 {
   display: block;
   width: min(100%, 760px);
   aspect-ratio: 38 / 27;
-  border: 1px solid rgba(24, 33, 42, 0.12);
+  border: 1px solid rgba(24, 124, 104, 0.14);
   border-radius: 8px;
-  background: #f8faf6;
-  box-shadow: var(--shadow);
+  background: #fbfcf8;
+  box-shadow: 0 16px 36px rgba(24, 33, 42, 0.12);
   touch-action: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -2408,7 +2408,7 @@ h2 {
 
   .circuit-canvas {
     width: 100%;
-    box-shadow: 0 10px 22px rgba(24, 33, 42, 0.12);
+    box-shadow: 0 8px 18px rgba(24, 33, 42, 0.1);
   }
 
   .untangle-canvas {
