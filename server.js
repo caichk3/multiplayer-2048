@@ -1990,6 +1990,7 @@ function createCircuitNodes() {
       x: Math.round((point?.x ?? getRandomCircuitPoint(index, CIRCUIT_NODE_COUNT).x) * 10) / 10,
       y: Math.round((point?.y ?? getRandomCircuitPoint(index, CIRCUIT_NODE_COUNT).y) * 10) / 10,
       color: "off",
+      pickedBy: "",
     });
   }
 
@@ -2185,7 +2186,12 @@ function playCircuitMove(roomCode, socketId, nodeId) {
     return { ok: false, message: "没有找到这个灯" };
   }
 
+  if (node.pickedBy) {
+    return { ok: false, message: "这个灯已经被主动点过，换一个新灯。" };
+  }
+
   node.color = side;
+  node.pickedBy = side;
   getCircuitNeighbors(circuit, normalizedNodeId).forEach((neighborId) => {
     const neighbor = circuit.nodes[neighborId];
 

@@ -173,6 +173,10 @@ const announcements = [
 ];
 const changelogEntries = [
   {
+    title: "红蓝电路加入选点锁定",
+    body: "红蓝电路中每个灯现在只能被主动选择一次，但仍可被相连灯影响翻色，避免双方反复点击同一个核心灯。",
+  },
+  {
     title: "新增红蓝电路对战",
     body: "加入双人回合制点灯对战，双方轮流选择灯，连接灯会变色或交换颜色，双方各走 10 步后按红蓝灯数量判胜负。",
   },
@@ -2142,7 +2146,7 @@ function updateCircuitStatus() {
   if (state.active) {
     const myTurn = circuitSide && circuitSide === state.currentTurn;
     circuitStatusText.textContent = myTurn
-      ? `轮到你了：选择一个灯。点中的灯变成${getCircuitSideLabel(circuitSide)}，相连灯会变色或换色。`
+      ? `轮到你了：选择一个没被主动点过的灯。相连灯会变色或换色。`
       : `等待 ${currentName} 点灯。`;
     circuitStartButton.disabled = true;
     return;
@@ -2158,7 +2162,7 @@ function updateCircuitStatus() {
   }
 
   circuitStatusText.textContent = circuitSide
-    ? `你是${getCircuitSideLabel(circuitSide)}。双方各走 ${moveLimit} 步，最后灯数多的一方获胜。`
+    ? `你是${getCircuitSideLabel(circuitSide)}。双方各走 ${moveLimit} 步，每个灯只能主动点一次，最后灯数多的一方获胜。`
     : "房间已满，你可以观战。";
   circuitStartButton.disabled = !circuitSide;
 }
@@ -2275,6 +2279,7 @@ function drawCircuitNodes(context, nodes, state) {
   nodes.forEach((node) => {
     const isLit = node.color && node.color !== "off";
     const isLast = node.id === lastNodeId;
+    const isPicked = Boolean(node.pickedBy);
     const fill = getCircuitSideColor(node.color);
 
     context.save();
@@ -2297,6 +2302,16 @@ function drawCircuitNodes(context, nodes, state) {
     context.fill();
     context.stroke();
     context.shadowBlur = 0;
+
+    if (isPicked) {
+      context.setLineDash([4, 4]);
+      context.strokeStyle = getCircuitSideColor(node.pickedBy);
+      context.lineWidth = 1.8;
+      context.beginPath();
+      context.arc(node.x, node.y, radius + 5, 0, Math.PI * 2);
+      context.stroke();
+      context.setLineDash([]);
+    }
 
     context.fillStyle = isLit ? "rgba(255, 255, 255, 0.86)" : "rgba(24, 33, 42, 0.2)";
     context.beginPath();
@@ -2417,6 +2432,11 @@ function handleCircuitPointerDown(event) {
   const node = getCircuitNodeAt(getCircuitCanvasPoint(event));
 
   if (!node) {
+    return;
+  }
+
+  if (node.pickedBy) {
+    circuitStatusText.textContent = "这个灯已经被主动点过，换一个新灯。";
     return;
   }
 
