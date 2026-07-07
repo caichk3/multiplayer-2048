@@ -49,6 +49,7 @@ const profileFlappyBest = document.querySelector("#profile-flappy-best");
 const profileDodgeBest = document.querySelector("#profile-dodge-best");
 const profileUntangleWins = document.querySelector("#profile-untangle-wins");
 const profileCubeWins = document.querySelector("#profile-cube-wins");
+const profileCircuitWins = document.querySelector("#profile-circuit-wins");
 const profileFruitBest = document.querySelector("#profile-fruit-best");
 const gameCards = Array.from(document.querySelectorAll(".game-card[data-game]"));
 const roomPanel = document.querySelector("#room-panel");
@@ -60,6 +61,7 @@ const gameDodgePanel = document.querySelector("#game-dodge");
 const gameUntanglePanel = document.querySelector("#game-untangle");
 const gameCubePanel = document.querySelector("#game-cubepuzzle");
 const gameDuelPanel = document.querySelector("#game-paddleduel");
+const gameCircuitPanel = document.querySelector("#game-circuitduel");
 const mineStatusText = document.querySelector("#mine-status-text");
 const mineRestartButton = document.querySelector("#mine-restart-button");
 const mineExpandButton = document.querySelector("#mine-expand-button");
@@ -125,6 +127,14 @@ const duelStatusText = document.querySelector("#duel-status-text");
 const duelStartButton = document.querySelector("#duel-start-button");
 const duelServeButton = document.querySelector("#duel-serve-button");
 const duelMoveButtons = Array.from(document.querySelectorAll("[data-duel-move]"));
+const circuitCanvas = document.querySelector("#circuit-canvas");
+const circuitContext = circuitCanvas.getContext("2d");
+const circuitRedCountElement = document.querySelector("#circuit-red-count");
+const circuitBlueCountElement = document.querySelector("#circuit-blue-count");
+const circuitTurnElement = document.querySelector("#circuit-turn");
+const circuitMovesElement = document.querySelector("#circuit-moves");
+const circuitStatusText = document.querySelector("#circuit-status-text");
+const circuitStartButton = document.querySelector("#circuit-start-button");
 
 const socket = io();
 const GAME_2048 = "2048";
@@ -135,6 +145,7 @@ const GAME_DODGE = "dodge";
 const GAME_UNTANGLE = "untangle";
 const GAME_CUBE = "cubepuzzle";
 const GAME_DUEL = "paddleduel";
+const GAME_CIRCUIT = "circuitduel";
 const size = 4;
 const totalCells = size * size;
 const bestKey = "web2-multiplayer-2048-best-score";
@@ -161,6 +172,10 @@ const announcements = [
   },
 ];
 const changelogEntries = [
+  {
+    title: "新增红蓝电路对战",
+    body: "加入双人回合制点灯对战，双方轮流选择灯，连接灯会变色或交换颜色，双方各走 10 步后按红蓝灯数量判胜负。",
+  },
   {
     title: "优化六面华容道界面",
     body: "收细立方体和数字块边框，降低厚重阴影，拖动旋转更跟手，并为数字移动加入轻量落位动画。",
@@ -623,6 +638,9 @@ let duelState = null;
 let duelSide = "";
 let duelInputDirection = 0;
 let duelRenderFrameId = null;
+let circuitState = null;
+let circuitSide = "";
+let circuitRenderFrameId = null;
 
 if (!mineDifficulties[mineDifficulty]) {
   mineDifficulty = "normal";
@@ -826,6 +844,7 @@ function renderAccount(nextProfile) {
     profileDodgeBest.textContent = "0.0s";
     profileUntangleWins.textContent = "0";
     profileCubeWins.textContent = "0";
+    profileCircuitWins.textContent = "0";
     profileFruitBest.textContent = "0";
     renderAuthView();
     updateRoomActions();
@@ -850,6 +869,7 @@ function renderAccount(nextProfile) {
   dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
   profileUntangleWins.textContent = String(profile.stats.untangle?.wins || 0);
   profileCubeWins.textContent = String(profile.stats.cubepuzzle?.wins || 0);
+  profileCircuitWins.textContent = String(profile.stats.circuitduel?.wins || 0);
   const profileCubeBest = Number(profile.stats.cubepuzzle?.bestMoves) || 0;
   if (profileCubeBest > 0 && (cubeBest === 0 || profileCubeBest < cubeBest)) {
     cubeBest = profileCubeBest;
@@ -876,9 +896,14 @@ function updateRoomActions() {
   const showUntangle = currentGame === GAME_UNTANGLE;
   const showCube = currentGame === GAME_CUBE;
   const showDuel = currentGame === GAME_DUEL;
-  const showRoom = show2048 || showDuel;
+  const showCircuit = currentGame === GAME_CIRCUIT;
+  const showRoom = show2048 || showDuel || showCircuit;
   roomPanel.hidden = !showRoom;
-  roomGameLabel.textContent = showDuel ? "挡板弹球对战" : "2048 联机竞速";
+  roomGameLabel.textContent = showCircuit
+    ? "红蓝电路对战"
+    : showDuel
+      ? "挡板弹球对战"
+      : "2048 联机竞速";
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
@@ -887,6 +912,7 @@ function updateRoomActions() {
   gameUntanglePanel.classList.toggle("is-hidden", !showUntangle);
   gameCubePanel.classList.toggle("is-hidden", !showCube);
   gameDuelPanel.classList.toggle("is-hidden", !showDuel);
+  gameCircuitPanel.classList.toggle("is-hidden", !showCircuit);
 
   gameCards.forEach((card) => {
     card.classList.toggle("is-active", card.dataset.game === currentGame);
@@ -920,6 +946,9 @@ function updateRoomActions() {
   } else if (showDuel) {
     renderDuel();
     updateDuelStatus();
+  } else if (showCircuit) {
+    renderCircuit();
+    updateCircuitStatus();
   }
 }
 
@@ -932,6 +961,10 @@ function getMineReadyText() {
 function setActiveGame(gameId, options = {}) {
   if (currentGame === GAME_DUEL && gameId !== GAME_DUEL) {
     setDuelInput(0);
+  }
+
+  if (currentGame === GAME_CIRCUIT && gameId !== GAME_CIRCUIT) {
+    circuitSide = "";
   }
 
   if (currentGame === GAME_DODGE && gameId !== GAME_DODGE) {
@@ -956,6 +989,7 @@ function setActiveGame(gameId, options = {}) {
     GAME_UNTANGLE,
     GAME_CUBE,
     GAME_DUEL,
+    GAME_CIRCUIT,
   ].includes(gameId)
     ? gameId
     : GAME_2048;
@@ -1508,6 +1542,8 @@ function setRoom(room, playerId) {
   currentPlayerId = playerId;
   duelState = room.duel || duelState;
   duelSide = getDuelSide();
+  circuitState = room.circuit || circuitState;
+  circuitSide = getCircuitSide();
   roomCodeInput.value = room.code;
   activeRoomCode.textContent = room.code;
   activeRoom.hidden = false;
@@ -1515,7 +1551,19 @@ function setRoom(room, playerId) {
   renderPlayers(room);
   renderDuel();
   updateDuelStatus();
+  renderCircuit();
+  updateCircuitStatus();
   updateRoomActions();
+}
+
+function setRoomStatus(messageText) {
+  if (currentGame === GAME_DUEL) {
+    duelStatusText.textContent = messageText;
+  } else if (currentGame === GAME_CIRCUIT) {
+    circuitStatusText.textContent = messageText;
+  } else {
+    statusText.textContent = messageText;
+  }
 }
 
 function createRoom() {
@@ -1530,7 +1578,7 @@ function createRoom() {
     createRoomButton.disabled = false;
 
     if (!response?.ok) {
-      statusText.textContent = response?.message || "创建房间失败";
+      setRoomStatus(response?.message || "创建房间失败");
       return;
     }
 
@@ -1548,7 +1596,7 @@ function joinRoom() {
   const roomCode = roomCodeInput.value.trim().toUpperCase();
 
   if (!roomCode) {
-    statusText.textContent = "先输入房间号";
+    setRoomStatus("先输入房间号");
     joinRoomButton.disabled = false;
     return;
   }
@@ -1557,7 +1605,7 @@ function joinRoom() {
     joinRoomButton.disabled = false;
 
     if (!response?.ok) {
-      statusText.textContent = response?.message || "加入房间失败";
+      setRoomStatus(response?.message || "加入房间失败");
       return;
     }
 
@@ -1580,6 +1628,7 @@ function getRoomPlayerStatusText(player) {
 function renderPlayers(room) {
   const players = room.players || [];
   const roomDuel = room.duel || duelState;
+  const roomCircuit = room.circuit || circuitState;
   playerCount.textContent = `${players.length} 人`;
   playersList.innerHTML = "";
 
@@ -1615,6 +1664,14 @@ function renderPlayers(room) {
             ? "右侧"
             : "观战";
       meta.textContent = `${side} · Lv.${player.level || 1} · ${getRoomPlayerStatusText(player)}`;
+    } else if (currentGame === GAME_CIRCUIT) {
+      const side =
+        roomCircuit?.players?.red?.id === player.id
+          ? "红方"
+          : roomCircuit?.players?.blue?.id === player.id
+            ? "蓝方"
+            : "观战";
+      meta.textContent = `${side} · Lv.${player.level || 1} · ${getRoomPlayerStatusText(player)}`;
     } else {
       meta.textContent = `${getRoomPlayerStatusText(player)} · Lv.${player.level || 1} · 最高块 ${player.bestTile || 0} · ${player.moves || 0} 步`;
     }
@@ -1630,9 +1687,26 @@ function renderPlayers(room) {
         : roomDuel?.players?.right?.id === player.id
           ? roomDuel?.score?.right
           : null;
-    scoreValue.textContent = String(currentGame === GAME_DUEL && duelScore !== null ? duelScore || 0 : player.score || 0);
+    const circuitScore =
+      roomCircuit?.players?.red?.id === player.id
+        ? roomCircuit?.counts?.red
+        : roomCircuit?.players?.blue?.id === player.id
+          ? roomCircuit?.counts?.blue
+          : null;
+    scoreValue.textContent = String(
+      currentGame === GAME_DUEL && duelScore !== null
+        ? duelScore || 0
+        : currentGame === GAME_CIRCUIT && circuitScore !== null
+          ? circuitScore || 0
+          : player.score || 0,
+    );
     const scoreLabel = document.createElement("span");
-    scoreLabel.textContent = currentGame === GAME_DUEL ? "进球" : `${player.totalPoints || 0} 总分`;
+    scoreLabel.textContent =
+      currentGame === GAME_DUEL
+        ? "进球"
+        : currentGame === GAME_CIRCUIT
+          ? "点亮"
+          : `${player.totalPoints || 0} 总分`;
     scoreBox.append(scoreValue, scoreLabel);
 
     item.append(rank, info, scoreBox);
@@ -1681,7 +1755,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 水果 ${player.stats.fruitmerge?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 六面 ${player.stats.cubepuzzle?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 水果 ${player.stats.fruitmerge?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 六面 ${player.stats.cubepuzzle?.wins || 0} 胜 · 电路 ${player.stats.circuitduel?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
 
     info.append(name, meta);
 
@@ -1995,6 +2069,362 @@ function drawDuelBall(context, x, y) {
 function setDuelTouchInput(clientY) {
   const rect = duelCanvas.getBoundingClientRect();
   setDuelInput(clientY < rect.top + rect.height / 2 ? -1 : 1);
+}
+
+function getCircuitSide(state = circuitState) {
+  if (!state?.players) {
+    return "";
+  }
+
+  if (state.players.red?.id === currentPlayerId) {
+    return "red";
+  }
+
+  if (state.players.blue?.id === currentPlayerId) {
+    return "blue";
+  }
+
+  return "";
+}
+
+function getCircuitSideLabel(side) {
+  if (side === "red") {
+    return "红方";
+  }
+
+  if (side === "blue") {
+    return "蓝方";
+  }
+
+  return "观战";
+}
+
+function getCircuitSideColor(side) {
+  if (side === "red") {
+    return "#d94f5b";
+  }
+
+  if (side === "blue") {
+    return "#2c6fbb";
+  }
+
+  return "#d4ddd8";
+}
+
+function updateCircuitStatus() {
+  circuitSide = getCircuitSide();
+  const state = circuitState || {};
+  const counts = state.counts || { red: 0, blue: 0, off: 0 };
+  const moves = state.moves || { red: 0, blue: 0 };
+  const moveLimit = state.moveLimit || 10;
+  const playerCount = [state.players?.red, state.players?.blue].filter(Boolean).length;
+  const currentName = state.players?.[state.currentTurn]?.name || getCircuitSideLabel(state.currentTurn);
+
+  circuitRedCountElement.textContent = String(counts.red || 0);
+  circuitBlueCountElement.textContent = String(counts.blue || 0);
+  circuitTurnElement.textContent = state.active ? getCircuitSideLabel(state.currentTurn) : "--";
+  circuitMovesElement.textContent = `${moves.red || 0}/${moveLimit} · ${moves.blue || 0}/${moveLimit}`;
+
+  if (!currentRoomCode) {
+    circuitStatusText.textContent = hasAccount()
+      ? "先创建房间，或输入同学的房间号加入。"
+      : "先登录账号，再创建或加入房间。";
+    circuitStartButton.disabled = !hasAccount();
+    return;
+  }
+
+  if (playerCount < 2) {
+    circuitStatusText.textContent = "等待第 2 位同学加入房间。";
+    circuitStartButton.disabled = true;
+    return;
+  }
+
+  if (state.active) {
+    const myTurn = circuitSide && circuitSide === state.currentTurn;
+    circuitStatusText.textContent = myTurn
+      ? `轮到你了：选择一个灯。点中的灯变成${getCircuitSideLabel(circuitSide)}，相连灯会变色或换色。`
+      : `等待 ${currentName} 点灯。`;
+    circuitStartButton.disabled = true;
+    return;
+  }
+
+  if (state.ended) {
+    const winnerName = state.winner ? state.players?.[state.winner]?.name : "";
+    circuitStatusText.textContent = winnerName
+      ? `${winnerName} 获胜，点击开始可以再来一局。`
+      : "平局，点击开始可以再来一局。";
+    circuitStartButton.disabled = !circuitSide;
+    return;
+  }
+
+  circuitStatusText.textContent = circuitSide
+    ? `你是${getCircuitSideLabel(circuitSide)}。双方各走 ${moveLimit} 步，最后灯数多的一方获胜。`
+    : "房间已满，你可以观战。";
+  circuitStartButton.disabled = !circuitSide;
+}
+
+function requestCircuitStart() {
+  if (!hasAccount()) {
+    circuitStatusText.textContent = "先登录账号再开始对战。";
+    return;
+  }
+
+  if (!currentRoomCode) {
+    circuitStatusText.textContent = "先创建或加入一个房间。";
+    return;
+  }
+
+  socket.emit("circuit:start", {}, (response) => {
+    if (!response?.ok) {
+      circuitStatusText.textContent = response?.message || "暂时不能开始对战。";
+    }
+  });
+}
+
+function scheduleCircuitRender() {
+  if (circuitRenderFrameId) {
+    return;
+  }
+
+  circuitRenderFrameId = window.requestAnimationFrame(() => {
+    circuitRenderFrameId = null;
+    renderCircuit();
+  });
+}
+
+function renderCircuit() {
+  const context = circuitContext;
+  const width = circuitCanvas.width;
+  const height = circuitCanvas.height;
+  const state = circuitState || {};
+  const nodes = Array.isArray(state.nodes) ? state.nodes : [];
+  const edges = Array.isArray(state.edges) ? state.edges : [];
+  const stateWidth = state.width || width;
+  const stateHeight = state.height || height;
+  const scaleX = width / stateWidth;
+  const scaleY = height / stateHeight;
+
+  updateCircuitStatus();
+  context.clearRect(0, 0, width, height);
+  drawCircuitBackground(context, width, height);
+
+  context.save();
+  context.scale(scaleX, scaleY);
+  drawCircuitEdges(context, nodes, edges, state);
+  drawCircuitNodes(context, nodes, state);
+  context.restore();
+  drawCircuitOverlay(context, state);
+}
+
+function drawCircuitBackground(context, width, height) {
+  const gradient = context.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#f8faf6");
+  gradient.addColorStop(0.5, "#edf5f2");
+  gradient.addColorStop(1, "#f8f1e8");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+
+  context.strokeStyle = "rgba(24, 124, 104, 0.08)";
+  context.lineWidth = 1;
+  for (let x = 30; x < width; x += 30) {
+    context.beginPath();
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+    context.stroke();
+  }
+
+  for (let y = 30; y < height; y += 30) {
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+    context.stroke();
+  }
+}
+
+function drawCircuitEdges(context, nodes, edges, state) {
+  const lastNodeId = state.lastMove?.nodeId;
+  edges.forEach((edge) => {
+    const start = nodes[edge.a];
+    const end = nodes[edge.b];
+
+    if (!start || !end) {
+      return;
+    }
+
+    const isHot = start.id === lastNodeId || end.id === lastNodeId;
+    const startLit = start.color && start.color !== "off";
+    const endLit = end.color && end.color !== "off";
+    context.strokeStyle = isHot
+      ? "rgba(214, 134, 49, 0.86)"
+      : startLit || endLit
+        ? "rgba(24, 33, 42, 0.46)"
+        : "rgba(24, 33, 42, 0.2)";
+    context.lineWidth = isHot ? 3.8 : 2.2;
+    context.beginPath();
+    context.moveTo(start.x, start.y);
+    context.lineTo(end.x, end.y);
+    context.stroke();
+  });
+}
+
+function drawCircuitNodes(context, nodes, state) {
+  const radius = getCircuitNodeRadius(nodes.length);
+  const lastNodeId = state.lastMove?.nodeId;
+  const myTurn = state.active && circuitSide && circuitSide === state.currentTurn;
+
+  nodes.forEach((node) => {
+    const isLit = node.color && node.color !== "off";
+    const isLast = node.id === lastNodeId;
+    const fill = getCircuitSideColor(node.color);
+
+    context.save();
+    if (isLit) {
+      context.shadowColor = node.color === "red"
+        ? "rgba(217, 79, 91, 0.52)"
+        : "rgba(44, 111, 187, 0.5)";
+      context.shadowBlur = isLast ? 18 : 10;
+    }
+
+    context.fillStyle = isLit ? fill : "#f7faf8";
+    context.strokeStyle = isLast
+      ? "#d68631"
+      : myTurn
+        ? "rgba(24, 124, 104, 0.5)"
+        : "rgba(24, 33, 42, 0.18)";
+    context.lineWidth = isLast ? 4 : 2;
+    context.beginPath();
+    context.arc(node.x, node.y, radius, 0, Math.PI * 2);
+    context.fill();
+    context.stroke();
+    context.shadowBlur = 0;
+
+    context.fillStyle = isLit ? "rgba(255, 255, 255, 0.86)" : "rgba(24, 33, 42, 0.2)";
+    context.beginPath();
+    context.arc(node.x - radius * 0.34, node.y - radius * 0.38, radius * 0.26, 0, Math.PI * 2);
+    context.fill();
+    context.restore();
+  });
+}
+
+function drawCircuitOverlay(context, state) {
+  const hasBoard = Array.isArray(state.nodes) && state.nodes.length > 0;
+
+  if (state.active) {
+    return;
+  }
+
+  const width = circuitCanvas.width;
+  const height = circuitCanvas.height;
+
+  if (hasBoard && state.ended) {
+    const winnerName = state.winner ? state.players?.[state.winner]?.name : "";
+    context.fillStyle = "rgba(24, 33, 42, 0.58)";
+    context.fillRect(width / 2 - 190, height / 2 - 68, 380, 136);
+    context.fillStyle = "#ffffff";
+    context.textAlign = "center";
+    context.font = "900 28px Inter, Arial, sans-serif";
+    context.fillText(winnerName ? `${winnerName} 获胜` : "平局", width / 2, height / 2 - 15);
+    context.font = "800 15px Inter, Arial, sans-serif";
+    context.fillText("点击开始对战可以再来一局", width / 2, height / 2 + 24);
+    return;
+  }
+
+  if (hasBoard) {
+    return;
+  }
+
+  context.fillStyle = "rgba(24, 33, 42, 0.52)";
+  context.fillRect(width / 2 - 180, height / 2 - 66, 360, 132);
+  context.fillStyle = "#ffffff";
+  context.textAlign = "center";
+  context.font = "900 28px Inter, Arial, sans-serif";
+  context.fillText(state.ended ? "对战结束" : "等待开始", width / 2, height / 2 - 14);
+  context.font = "800 15px Inter, Arial, sans-serif";
+  context.fillText(currentRoomCode ? "满 2 人后点击开始对战" : "先创建或加入房间", width / 2, height / 2 + 24);
+}
+
+function getCircuitNodeRadius(count) {
+  if (count >= 52) {
+    return 11;
+  }
+
+  if (count >= 44) {
+    return 12;
+  }
+
+  return 13;
+}
+
+function getCircuitCanvasPoint(event) {
+  const rect = circuitCanvas.getBoundingClientRect();
+  const state = circuitState || {};
+  const width = state.width || circuitCanvas.width;
+  const height = state.height || circuitCanvas.height;
+
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * width,
+    y: ((event.clientY - rect.top) / rect.height) * height,
+  };
+}
+
+function getCircuitNodeAt(point) {
+  const nodes = circuitState?.nodes || [];
+  const pickRadius = getCircuitNodeRadius(nodes.length) + 10;
+  let picked = null;
+  let pickedDistance = Infinity;
+
+  nodes.forEach((node) => {
+    const distance = Math.hypot(node.x - point.x, node.y - point.y);
+
+    if (distance <= pickRadius && distance < pickedDistance) {
+      picked = node;
+      pickedDistance = distance;
+    }
+  });
+
+  return picked;
+}
+
+function handleCircuitPointerDown(event) {
+  if (currentGame !== GAME_CIRCUIT) {
+    return;
+  }
+
+  event.preventDefault();
+
+  if (!currentRoomCode) {
+    circuitStatusText.textContent = "先创建或加入一个房间。";
+    return;
+  }
+
+  if (!circuitState?.active) {
+    circuitStatusText.textContent = "先点击开始对战。";
+    return;
+  }
+
+  circuitSide = getCircuitSide();
+
+  if (!circuitSide) {
+    circuitStatusText.textContent = "你正在观战这局对战。";
+    return;
+  }
+
+  if (circuitSide !== circuitState.currentTurn) {
+    circuitStatusText.textContent = "还没轮到你。";
+    return;
+  }
+
+  const node = getCircuitNodeAt(getCircuitCanvasPoint(event));
+
+  if (!node) {
+    return;
+  }
+
+  socket.emit("circuit:move", { nodeId: node.id }, (response) => {
+    if (!response?.ok) {
+      circuitStatusText.textContent = response?.message || "这个灯暂时不能点。";
+    }
+  });
 }
 
 function resetFlappyGame(options = {}) {
@@ -6214,9 +6644,13 @@ socket.on("room:update", (room) => {
 
   duelState = room.duel || duelState;
   duelSide = getDuelSide();
+  circuitState = room.circuit || circuitState;
+  circuitSide = getCircuitSide();
   renderPlayers(room);
   scheduleDuelRender();
+  scheduleCircuitRender();
   updateDuelStatus();
+  updateCircuitStatus();
 });
 
 socket.on("duel:update", (state) => {
@@ -6231,6 +6665,28 @@ socket.on("duel:ended", async (payload = {}) => {
   duelSide = getDuelSide();
   scheduleDuelRender();
   updateDuelStatus();
+
+  try {
+    const data = await apiRequest("/api/me");
+    renderAccount(data.profile);
+    await refreshLeaderboard();
+  } catch {
+    await refreshLeaderboard();
+  }
+});
+
+socket.on("circuit:update", (state) => {
+  circuitState = state;
+  circuitSide = getCircuitSide();
+  scheduleCircuitRender();
+  updateCircuitStatus();
+});
+
+socket.on("circuit:ended", async (payload = {}) => {
+  circuitState = payload.state || circuitState;
+  circuitSide = getCircuitSide();
+  scheduleCircuitRender();
+  updateCircuitStatus();
 
   try {
     const data = await apiRequest("/api/me");
@@ -6322,6 +6778,7 @@ cubeViewButtons.forEach((button) => {
 });
 duelStartButton.addEventListener("click", requestDuelStart);
 duelServeButton.addEventListener("click", requestDuelServe);
+circuitStartButton.addEventListener("click", requestCircuitStart);
 messageButton.addEventListener("click", hideMessageAndContinue);
 messageSecondaryButton.addEventListener("click", settleAndRestart2048);
 gameCards.forEach((card) => {
@@ -6387,6 +6844,7 @@ duelCanvas.addEventListener("pointermove", (event) => {
 });
 duelCanvas.addEventListener("pointerup", () => setDuelInput(0));
 duelCanvas.addEventListener("pointercancel", () => setDuelInput(0));
+circuitCanvas.addEventListener("pointerdown", handleCircuitPointerDown);
 duelMoveButtons.forEach((button) => {
   const direction = button.dataset.duelMove === "up" ? -1 : 1;
 
@@ -6455,5 +6913,6 @@ resetDodgeGame();
 startUntangleGame({ notify: false, settlePrevious: false });
 startCubePuzzleGame({ readyText: text.cubeReady });
 renderDuel();
+renderCircuit();
 start2048Game({ notify: false, settlePrevious: false });
 loadSession();

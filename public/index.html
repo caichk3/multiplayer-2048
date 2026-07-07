@@ -201,6 +201,10 @@
             <strong id="profile-cube-wins">0</strong>
           </div>
           <div>
+            <span>电路胜场</span>
+            <strong id="profile-circuit-wins">0</strong>
+          </div>
+          <div>
             <span>水果最高</span>
             <strong id="profile-fruit-best">0</strong>
           </div>
@@ -214,7 +218,7 @@
             <p class="eyebrow">小游戏</p>
             <h2>游戏列表</h2>
           </div>
-          <span id="catalog-count">8 个可玩</span>
+          <span id="catalog-count">9 个可玩</span>
         </div>
 
         <div class="game-catalog">
@@ -257,6 +261,11 @@
             <span class="game-badge">对战</span>
             <h3>挡板弹球</h3>
             <p>双人实时 · 3 分钟限时 · 进门得分</p>
+          </button>
+          <button class="game-card" type="button" data-game="circuitduel">
+            <span class="game-badge">对战</span>
+            <h3>红蓝电路</h3>
+            <p>轮流点灯 · 相邻变色 · 灯数决胜</p>
           </button>
         </div>
       </section>
@@ -686,6 +695,51 @@
           <div class="duel-touch-controls" aria-label="挡板移动">
             <button type="button" data-duel-move="up">上移</button>
             <button type="button" data-duel-move="down">下移</button>
+          </div>
+        </section>
+
+        <section class="game-panel game-view is-hidden" id="game-circuitduel" aria-label="红蓝电路对战">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">Circuit Duel</p>
+              <h2>红蓝电路</h2>
+            </div>
+
+            <div class="score-panel circuit-score-panel" aria-label="红蓝电路状态">
+              <div class="score-box">
+                <span>红灯</span>
+                <strong id="circuit-red-count">0</strong>
+              </div>
+              <div class="score-box">
+                <span>蓝灯</span>
+                <strong id="circuit-blue-count">0</strong>
+              </div>
+              <div class="score-box">
+                <span>回合</span>
+                <strong id="circuit-turn">--</strong>
+              </div>
+              <div class="score-box">
+                <span>步数</span>
+                <strong id="circuit-moves">0/10</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="circuit-status-text">创建或加入房间，满 2 人后开始点灯。</p>
+            <div class="duel-actions">
+              <button id="circuit-start-button" type="button">开始对战</button>
+            </div>
+          </div>
+
+          <div class="circuit-stage-wrap">
+            <canvas
+              id="circuit-canvas"
+              class="circuit-canvas"
+              width="760"
+              height="540"
+              aria-label="红蓝电路对战画面"
+            ></canvas>
           </div>
         </section>
 

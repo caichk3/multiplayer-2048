@@ -25,6 +25,11 @@ const DUEL_PADDLE_X = 42;
 const DUEL_BALL_RADIUS = 11;
 const DUEL_TICK_INTERVAL_MS = 1000 / 24;
 const DUEL_BROADCAST_INTERVAL_MS = 1000 / 18;
+const CIRCUIT_WIDTH = 760;
+const CIRCUIT_HEIGHT = 540;
+const CIRCUIT_NODE_COUNT = 48;
+const CIRCUIT_TARGET_EDGE_COUNT = 82;
+const CIRCUIT_MOVE_LIMIT = 10;
 const LEADERBOARD_ENTRY_MIN_POINTS = 1;
 const UNUSED_ACCOUNT_TTL_MS = 3 * 60 * 60 * 1000;
 const UNUSED_ACCOUNT_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
@@ -721,6 +726,15 @@ function createDefaultStats() {
         lastResult: "",
         lastPlayedAt: null,
       },
+      circuitduel: {
+        plays: 0,
+        wins: 0,
+        draws: 0,
+        bestLights: 0,
+        lastResult: "",
+        lastLights: 0,
+        lastPlayedAt: null,
+      },
       untangle: {
         plays: 0,
         wins: 0,
@@ -784,6 +798,10 @@ function ensureUserShape(user) {
   user.stats.games.paddleduel = {
     ...createDefaultStats().games.paddleduel,
     ...(user.stats.games.paddleduel || {}),
+  };
+  user.stats.games.circuitduel = {
+    ...createDefaultStats().games.circuitduel,
+    ...(user.stats.games.circuitduel || {}),
   };
   user.stats.games.untangle = {
     ...createDefaultStats().games.untangle,
@@ -914,6 +932,7 @@ function getPublicProfile(user) {
   const fruitmerge = user.stats.games.fruitmerge;
   const dodge = user.stats.games.dodge;
   const paddleduel = user.stats.games.paddleduel;
+  const circuitduel = user.stats.games.circuitduel;
   const untangle = user.stats.games.untangle;
   const cubepuzzle = user.stats.games.cubepuzzle;
 
@@ -972,6 +991,14 @@ function getPublicProfile(user) {
         goalsFor: paddleduel.goalsFor,
         goalsAgainst: paddleduel.goalsAgainst,
         lastResult: paddleduel.lastResult,
+      },
+      circuitduel: {
+        plays: circuitduel.plays,
+        wins: circuitduel.wins,
+        draws: circuitduel.draws,
+        bestLights: circuitduel.bestLights,
+        lastResult: circuitduel.lastResult,
+        lastLights: circuitduel.lastLights,
       },
       untangle: {
         plays: untangle.plays,
@@ -1306,6 +1333,35 @@ function createDuelState() {
   };
 }
 
+function createCircuitState() {
+  return {
+    active: false,
+    ended: false,
+    gameId: "",
+    startedAt: 0,
+    players: {
+      red: null,
+      blue: null,
+    },
+    nodes: [],
+    edges: [],
+    currentTurn: "red",
+    moves: {
+      red: 0,
+      blue: 0,
+    },
+    moveLimit: CIRCUIT_MOVE_LIMIT,
+    counts: {
+      red: 0,
+      blue: 0,
+      off: CIRCUIT_NODE_COUNT,
+    },
+    winner: "",
+    lastMove: null,
+    settled: false,
+  };
+}
+
 function ensureRoom(roomCode) {
   if (!rooms.has(roomCode)) {
     rooms.set(roomCode, {
@@ -1313,6 +1369,7 @@ function ensureRoom(roomCode) {
       createdAt: Date.now(),
       players: new Map(),
       duel: createDuelState(),
+      circuit: createCircuitState(),
     });
   }
 
@@ -1329,6 +1386,7 @@ function leaveCurrentRoom(socket) {
 
   room.players.delete(socket.id);
   handleDuelPlayerLeave(room, socket.id);
+  handleCircuitPlayerLeave(room, socket.id);
   socket.leave(roomCode);
   sendRoomUpdate(roomCode);
   cleanEmptyRoom(roomCode);
@@ -1368,6 +1426,7 @@ function getPublicRoom(room) {
     players,
     playerCount: players.length,
     duel: getPublicDuelState(room),
+    circuit: getPublicCircuitState(room),
   };
 }
 
@@ -1805,6 +1864,481 @@ function calculateDuelAward({ result, goalsFor, goalsAgainst }) {
   };
 }
 
+function syncCircuitPlayers(room) {
+  const circuit = room.circuit || createCircuitState();
+  room.circuit = circuit;
+  const connectedPlayers = Array.from(room.players.values()).sort(
+    (first, second) => first.joinedAt - second.joinedAt,
+  );
+  const hasPlayer = (player) => player && room.players.has(player.id);
+
+  if (!hasPlayer(circuit.players.red)) {
+    circuit.players.red = null;
+  }
+
+  if (!hasPlayer(circuit.players.blue)) {
+    circuit.players.blue = null;
+  }
+
+  connectedPlayers.forEach((player) => {
+    if (!circuit.players.red && circuit.players.blue?.id !== player.id) {
+      circuit.players.red = player;
+    } else if (!circuit.players.blue && circuit.players.red?.id !== player.id) {
+      circuit.players.blue = player;
+    }
+  });
+}
+
+function getPublicCircuitPlayer(player) {
+  if (!player) {
+    return null;
+  }
+
+  return {
+    id: player.id,
+    accountId: player.accountId,
+    name: player.name,
+    level: player.level,
+  };
+}
+
+function getPublicCircuitState(room) {
+  syncCircuitPlayers(room);
+  const circuit = room.circuit;
+
+  return {
+    active: circuit.active,
+    ended: circuit.ended,
+    width: CIRCUIT_WIDTH,
+    height: CIRCUIT_HEIGHT,
+    players: {
+      red: getPublicCircuitPlayer(circuit.players.red),
+      blue: getPublicCircuitPlayer(circuit.players.blue),
+    },
+    nodes: circuit.nodes,
+    edges: circuit.edges,
+    currentTurn: circuit.currentTurn,
+    moves: circuit.moves,
+    moveLimit: circuit.moveLimit,
+    counts: circuit.counts,
+    winner: circuit.winner,
+    lastMove: circuit.lastMove,
+  };
+}
+
+function sendCircuitUpdate(roomCode) {
+  const room = rooms.get(roomCode);
+
+  if (!room) {
+    return;
+  }
+
+  io.to(roomCode).emit("circuit:update", getPublicCircuitState(room));
+}
+
+function getRandomCircuitPoint(index, total) {
+  const margin = 42;
+  const centerX = CIRCUIT_WIDTH / 2;
+  const centerY = CIRCUIT_HEIGHT / 2;
+  const angle = (index / total) * Math.PI * 2 + Math.random() * 0.55;
+  const radialJitter = 0.42 + Math.random() * 0.54;
+  const x = centerX + Math.cos(angle) * CIRCUIT_WIDTH * 0.42 * radialJitter;
+  const y = centerY + Math.sin(angle) * CIRCUIT_HEIGHT * 0.4 * radialJitter;
+
+  if (Math.random() < 0.42) {
+    return {
+      x: margin + Math.random() * (CIRCUIT_WIDTH - margin * 2),
+      y: margin + Math.random() * (CIRCUIT_HEIGHT - margin * 2),
+    };
+  }
+
+  return {
+    x: Math.max(margin, Math.min(CIRCUIT_WIDTH - margin, x)),
+    y: Math.max(margin, Math.min(CIRCUIT_HEIGHT - margin, y)),
+  };
+}
+
+function distanceBetweenCircuitNodes(first, second) {
+  return Math.hypot(first.x - second.x, first.y - second.y);
+}
+
+function getCircuitEdgeKey(a, b) {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+function createCircuitNodes() {
+  const nodes = [];
+  const minimumDistance = 42;
+
+  for (let index = 0; index < CIRCUIT_NODE_COUNT; index += 1) {
+    let point = null;
+
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const candidate = getRandomCircuitPoint(index, CIRCUIT_NODE_COUNT);
+      const hasSpace = nodes.every(
+        (node) => distanceBetweenCircuitNodes(node, candidate) >= minimumDistance,
+      );
+
+      if (hasSpace) {
+        point = candidate;
+        break;
+      }
+    }
+
+    nodes.push({
+      id: index,
+      x: Math.round((point?.x ?? getRandomCircuitPoint(index, CIRCUIT_NODE_COUNT).x) * 10) / 10,
+      y: Math.round((point?.y ?? getRandomCircuitPoint(index, CIRCUIT_NODE_COUNT).y) * 10) / 10,
+      color: "off",
+    });
+  }
+
+  return nodes;
+}
+
+function createCircuitEdges(nodes) {
+  const edges = [];
+  const used = new Set();
+
+  for (let index = 1; index < nodes.length; index += 1) {
+    let nearest = 0;
+    let nearestDistance = Infinity;
+
+    for (let target = 0; target < index; target += 1) {
+      const distance = distanceBetweenCircuitNodes(nodes[index], nodes[target]);
+
+      if (distance < nearestDistance) {
+        nearest = target;
+        nearestDistance = distance;
+      }
+    }
+
+    const key = getCircuitEdgeKey(index, nearest);
+    used.add(key);
+    edges.push({ a: index, b: nearest });
+  }
+
+  const candidates = [];
+  for (let a = 0; a < nodes.length; a += 1) {
+    for (let b = a + 1; b < nodes.length; b += 1) {
+      const key = getCircuitEdgeKey(a, b);
+
+      if (!used.has(key)) {
+        const distance = distanceBetweenCircuitNodes(nodes[a], nodes[b]);
+        candidates.push({ a, b, distance, weight: distance + Math.random() * 150 });
+      }
+    }
+  }
+
+  candidates
+    .sort((first, second) => first.weight - second.weight)
+    .forEach((candidate) => {
+      if (edges.length >= CIRCUIT_TARGET_EDGE_COUNT) {
+        return;
+      }
+
+      const key = getCircuitEdgeKey(candidate.a, candidate.b);
+      used.add(key);
+      edges.push({ a: candidate.a, b: candidate.b });
+    });
+
+  return edges;
+}
+
+function getCircuitCounts(nodes) {
+  return nodes.reduce(
+    (counts, node) => {
+      if (node.color === "red") {
+        counts.red += 1;
+      } else if (node.color === "blue") {
+        counts.blue += 1;
+      } else {
+        counts.off += 1;
+      }
+
+      return counts;
+    },
+    { red: 0, blue: 0, off: 0 },
+  );
+}
+
+function createCircuitBoard() {
+  const nodes = createCircuitNodes();
+
+  return {
+    nodes,
+    edges: createCircuitEdges(nodes),
+  };
+}
+
+function startCircuit(roomCode, socketId) {
+  const room = rooms.get(roomCode);
+
+  if (!room) {
+    return { ok: false, message: "没有找到房间" };
+  }
+
+  syncCircuitPlayers(room);
+  const circuit = room.circuit;
+  const isParticipant = [circuit.players.red?.id, circuit.players.blue?.id].includes(socketId);
+
+  if (circuit.active) {
+    return { ok: false, message: "本局正在进行中" };
+  }
+
+  if (!isParticipant) {
+    return { ok: false, message: "只有红蓝双方可以开始" };
+  }
+
+  if (!circuit.players.red || !circuit.players.blue) {
+    return { ok: false, message: "需要 2 位玩家才能开始" };
+  }
+
+  const board = createCircuitBoard();
+  circuit.active = true;
+  circuit.ended = false;
+  circuit.gameId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  circuit.startedAt = Date.now();
+  circuit.nodes = board.nodes;
+  circuit.edges = board.edges;
+  circuit.currentTurn = Math.random() > 0.5 ? "red" : "blue";
+  circuit.moves.red = 0;
+  circuit.moves.blue = 0;
+  circuit.counts = getCircuitCounts(circuit.nodes);
+  circuit.winner = "";
+  circuit.lastMove = null;
+  circuit.settled = false;
+  sendRoomUpdate(roomCode);
+  sendCircuitUpdate(roomCode);
+  return { ok: true };
+}
+
+function getCircuitSide(circuit, socketId) {
+  if (circuit.players.red?.id === socketId) {
+    return "red";
+  }
+
+  if (circuit.players.blue?.id === socketId) {
+    return "blue";
+  }
+
+  return "";
+}
+
+function flipCircuitColor(color) {
+  if (color === "red") {
+    return "blue";
+  }
+
+  if (color === "blue") {
+    return "red";
+  }
+
+  return color;
+}
+
+function getCircuitNeighbors(circuit, nodeId) {
+  const neighbors = [];
+
+  circuit.edges.forEach((edge) => {
+    if (edge.a === nodeId) {
+      neighbors.push(edge.b);
+    } else if (edge.b === nodeId) {
+      neighbors.push(edge.a);
+    }
+  });
+
+  return neighbors;
+}
+
+function playCircuitMove(roomCode, socketId, nodeId) {
+  const room = rooms.get(roomCode);
+
+  if (!room || !room.circuit) {
+    return { ok: false, message: "没有找到对战" };
+  }
+
+  syncCircuitPlayers(room);
+  const circuit = room.circuit;
+  const side = getCircuitSide(circuit, socketId);
+  const normalizedNodeId = clampInteger(nodeId, 0, CIRCUIT_NODE_COUNT - 1);
+
+  if (!circuit.active) {
+    return { ok: false, message: "本局还没有开始" };
+  }
+
+  if (!side) {
+    return { ok: false, message: "你正在观战这局对战" };
+  }
+
+  if (side !== circuit.currentTurn) {
+    return { ok: false, message: "还没轮到你" };
+  }
+
+  if (circuit.moves[side] >= circuit.moveLimit) {
+    return { ok: false, message: "你的步数已经用完" };
+  }
+
+  const node = circuit.nodes[normalizedNodeId];
+
+  if (!node) {
+    return { ok: false, message: "没有找到这个灯" };
+  }
+
+  node.color = side;
+  getCircuitNeighbors(circuit, normalizedNodeId).forEach((neighborId) => {
+    const neighbor = circuit.nodes[neighborId];
+
+    if (!neighbor) {
+      return;
+    }
+
+    neighbor.color = neighbor.color === "off" ? side : flipCircuitColor(neighbor.color);
+  });
+
+  circuit.moves[side] += 1;
+  circuit.counts = getCircuitCounts(circuit.nodes);
+  circuit.lastMove = {
+    side,
+    nodeId: normalizedNodeId,
+    at: Date.now(),
+  };
+
+  if (circuit.moves.red >= circuit.moveLimit && circuit.moves.blue >= circuit.moveLimit) {
+    finishCircuit(roomCode);
+  } else {
+    const nextSide = side === "red" ? "blue" : "red";
+    circuit.currentTurn =
+      circuit.moves[nextSide] < circuit.moveLimit
+        ? nextSide
+        : side;
+    sendCircuitUpdate(roomCode);
+  }
+
+  return { ok: true };
+}
+
+function handleCircuitPlayerLeave(room, socketId) {
+  const circuit = room.circuit;
+
+  if (!circuit) {
+    return;
+  }
+
+  const wasRed = circuit.players.red?.id === socketId;
+  const wasBlue = circuit.players.blue?.id === socketId;
+
+  if (circuit.active && (wasRed || wasBlue)) {
+    finishCircuit(room.code, wasRed ? "blue" : "red");
+  }
+
+  if (wasRed) {
+    circuit.players.red = null;
+  }
+
+  if (wasBlue) {
+    circuit.players.blue = null;
+  }
+}
+
+function finishCircuit(roomCode, forcedWinner = "") {
+  const room = rooms.get(roomCode);
+
+  if (!room || !room.circuit) {
+    return;
+  }
+
+  const circuit = room.circuit;
+  circuit.active = false;
+  circuit.ended = true;
+  circuit.counts = getCircuitCounts(circuit.nodes);
+  circuit.winner =
+    forcedWinner ||
+    (circuit.counts.red > circuit.counts.blue
+      ? "red"
+      : circuit.counts.blue > circuit.counts.red
+        ? "blue"
+        : "");
+  awardCircuitResults(room);
+  sendRoomUpdate(roomCode);
+  io.to(roomCode).emit("circuit:ended", { state: getPublicCircuitState(room) });
+}
+
+function awardCircuitResults(room) {
+  const circuit = room.circuit;
+
+  if (!circuit || circuit.settled) {
+    return;
+  }
+
+  circuit.settled = true;
+  ["red", "blue"].forEach((side) => {
+    const player = circuit.players[side];
+
+    if (!player) {
+      return;
+    }
+
+    const user = store.users.find((entry) => entry.id === player.accountId);
+
+    if (!user) {
+      return;
+    }
+
+    ensureUserShape(user);
+    const lights = circuit.counts[side] || 0;
+    const opponent = side === "red" ? "blue" : "red";
+    const opponentLights = circuit.counts[opponent] || 0;
+    const result = circuit.winner ? (circuit.winner === side ? "won" : "lost") : "draw";
+    const award = calculateCircuitAward({ result, lights, opponentLights });
+    const stats = user.stats.games.circuitduel;
+
+    user.totalPoints += award.points;
+    user.stats.gamesPlayed += 1;
+    user.stats.lastPlayedAt = Date.now();
+    stats.plays += 1;
+    stats.wins += result === "won" ? 1 : 0;
+    stats.draws += result === "draw" ? 1 : 0;
+    stats.bestLights = Math.max(stats.bestLights, lights);
+    stats.lastResult = result;
+    stats.lastLights = lights;
+    stats.lastPlayedAt = Date.now();
+    user.recentResults.unshift({
+      game: "circuitduel",
+      result,
+      lights,
+      opponentLights,
+      points: award.points,
+      playedAt: Date.now(),
+    });
+    user.recentResults = user.recentResults.slice(0, 12);
+
+    const profile = getPublicProfile(user);
+    player.totalPoints = profile.totalPoints;
+    player.level = profile.level;
+  });
+
+  saveStore();
+}
+
+function calculateCircuitAward({ result, lights, opponentLights }) {
+  const basePoints = 150;
+  const lightPoints = lights * 18;
+  const marginBonus = Math.max(0, lights - opponentLights) * 20;
+  const resultBonus = result === "won" ? 360 : result === "draw" ? 210 : 90;
+
+  return {
+    points: normalizeAwardPoints(basePoints + lightPoints + marginBonus + resultBonus, {
+      softCap: 1400,
+      max: 2200,
+      overflowRate: 0.34,
+    }),
+    result,
+    lights,
+    opponentLights,
+  };
+}
+
 function getSocketUser(token) {
   return getUserByToken(String(token || ""));
 }
@@ -1951,6 +2485,24 @@ io.on("connection", (socket) => {
     }
 
     duel.inputs[side] = Math.max(-1, Math.min(1, Number(payload.direction) || 0));
+  });
+
+  socket.on("circuit:start", (_payload = {}, callback) => {
+    const roomCode = socket.data.roomCode;
+    const result = startCircuit(roomCode, socket.id);
+
+    if (typeof callback === "function") {
+      callback(result);
+    }
+  });
+
+  socket.on("circuit:move", (payload = {}, callback) => {
+    const roomCode = socket.data.roomCode;
+    const result = playCircuitMove(roomCode, socket.id, payload.nodeId);
+
+    if (typeof callback === "function") {
+      callback(result);
+    }
   });
 
   socket.on("room:leave", () => {
