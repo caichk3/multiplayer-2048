@@ -1033,8 +1033,7 @@ function getGlobalLeaderboard() {
       }
 
       return second.stats.game2048.highScore - first.stats.game2048.highScore;
-    })
-    .slice(0, 20);
+    });
 }
 
 function normalizeAwardPoints(points, options = {}) {

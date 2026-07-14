@@ -167,13 +167,16 @@ const cubeLayoutQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const circuitLightModeQuery = window.matchMedia("(hover: none), (max-width: 720px)");
 const circuitReducedMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
 const maxInfoEntries = 10;
-const announcements = [
-  {
-    title: "测试提醒",
-    body: "“六面华容道”尚处于测试阶段。",
-  },
-];
+const announcements = [];
 const changelogEntries = [
+  {
+    title: "移除旧对战入口",
+    body: "从游戏列表移除六面华容道和挡板弹球，红蓝电路继续保留为当前双人对战玩法。",
+  },
+  {
+    title: "排行榜人数限制取消",
+    body: "总积分榜不再只返回前 20 名，所有达到上榜积分条件的玩家都会展示。",
+  },
   {
     title: "红蓝电路视觉优化",
     body: "重绘灯泡、电线和锁定标记，并加入只在点灯瞬间播放的轻量脉冲动效，移动端不会持续渲染消耗性能。",
@@ -856,7 +859,9 @@ function renderAccount(nextProfile) {
     profileFlappyBest.textContent = "0";
     profileDodgeBest.textContent = "0.0s";
     profileUntangleWins.textContent = "0";
-    profileCubeWins.textContent = "0";
+    if (profileCubeWins) {
+      profileCubeWins.textContent = "0";
+    }
     profileCircuitWins.textContent = "0";
     profileFruitBest.textContent = "0";
     renderAuthView();
@@ -881,7 +886,9 @@ function renderAccount(nextProfile) {
   profileDodgeBest.textContent = formatDodgeTime(dodgeBest);
   dodgeBestElement.textContent = formatDodgeTime(dodgeBest);
   profileUntangleWins.textContent = String(profile.stats.untangle?.wins || 0);
-  profileCubeWins.textContent = String(profile.stats.cubepuzzle?.wins || 0);
+  if (profileCubeWins) {
+    profileCubeWins.textContent = String(profile.stats.cubepuzzle?.wins || 0);
+  }
   profileCircuitWins.textContent = String(profile.stats.circuitduel?.wins || 0);
   const profileCubeBest = Number(profile.stats.cubepuzzle?.bestMoves) || 0;
   if (profileCubeBest > 0 && (cubeBest === 0 || profileCubeBest < cubeBest)) {
@@ -910,13 +917,9 @@ function updateRoomActions() {
   const showCube = currentGame === GAME_CUBE;
   const showDuel = currentGame === GAME_DUEL;
   const showCircuit = currentGame === GAME_CIRCUIT;
-  const showRoom = show2048 || showDuel || showCircuit;
+  const showRoom = show2048 || showCircuit;
   roomPanel.hidden = !showRoom;
-  roomGameLabel.textContent = showCircuit
-    ? "红蓝电路对战"
-    : showDuel
-      ? "挡板弹球对战"
-      : "2048 联机竞速";
+  roomGameLabel.textContent = showCircuit ? "红蓝电路对战" : "2048 联机竞速";
   game2048Panel.classList.toggle("is-hidden", !show2048);
   gameMinesweeperPanel.classList.toggle("is-hidden", !showMinesweeper);
   gameFlappyPanel.classList.toggle("is-hidden", !showFlappy);
@@ -1000,8 +1003,6 @@ function setActiveGame(gameId, options = {}) {
     GAME_FRUIT,
     GAME_DODGE,
     GAME_UNTANGLE,
-    GAME_CUBE,
-    GAME_DUEL,
     GAME_CIRCUIT,
   ].includes(gameId)
     ? gameId
@@ -1768,7 +1769,7 @@ function renderGlobalLeaderboard(players) {
 
     const meta = document.createElement("span");
     meta.className = "player-meta";
-    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 水果 ${player.stats.fruitmerge?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 六面 ${player.stats.cubepuzzle?.wins || 0} 胜 · 电路 ${player.stats.circuitduel?.wins || 0} 胜 · 弹球 ${player.stats.paddleduel?.wins || 0} 胜`;
+    meta.textContent = `Lv.${player.level} · 2048 最高 ${player.stats.game2048.highScore} · 扫雷 ${player.stats.minesweeper3d.wins} 胜 · 飞鸟 ${player.stats.flappy?.bestScore || 0} · 水果 ${player.stats.fruitmerge?.bestScore || 0} · 灵敏 ${formatDodgeTime(player.stats.dodge?.bestTime || 0)} · 解绳 ${player.stats.untangle?.wins || 0} 胜 · 电路 ${player.stats.circuitduel?.wins || 0} 胜`;
 
     info.append(name, meta);
 
