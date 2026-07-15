@@ -1787,12 +1787,17 @@ function renderGlobalLeaderboard(players) {
 }
 
 function toggleInfoPanel(panel, toggle) {
+  if (!panel || !toggle) {
+    return;
+  }
+
   const willOpen = panel.classList.contains("is-collapsed");
   closeInfoPanels();
 
   if (willOpen) {
     panel.classList.remove("is-collapsed");
     toggle.setAttribute("aria-expanded", "true");
+    document.body.classList.add("has-info-panel-open");
   }
 }
 
@@ -1802,9 +1807,14 @@ function closeInfoPanels() {
     [leaderboardPanel, leaderboardToggle],
     [changelogPanel, changelogToggle],
   ].forEach(([panel, toggle]) => {
+    if (!panel || !toggle) {
+      return;
+    }
+
     panel.classList.add("is-collapsed");
     toggle.setAttribute("aria-expanded", "false");
   });
+  document.body.classList.remove("has-info-panel-open");
 }
 
 function closeInfoPanelFromButton(button) {
@@ -1822,6 +1832,7 @@ function closeInfoPanelFromButton(button) {
   const [panel, toggle] = target;
   panel.classList.add("is-collapsed");
   toggle.setAttribute("aria-expanded", "false");
+  document.body.classList.remove("has-info-panel-open");
 }
 
 function renderInfoList(list, entries, emptyTitle, emptyBody) {
@@ -6952,9 +6963,21 @@ logoutButton.addEventListener("click", logoutAccount);
 createRoomButton.addEventListener("click", createRoom);
 joinRoomButton.addEventListener("click", joinRoom);
 copyRoomButton.addEventListener("click", copyRoomCode);
-announcementToggle.addEventListener("click", () => toggleInfoPanel(announcementPanel, announcementToggle));
-leaderboardToggle.addEventListener("click", () => toggleInfoPanel(leaderboardPanel, leaderboardToggle));
-changelogToggle.addEventListener("click", () => toggleInfoPanel(changelogPanel, changelogToggle));
+announcementToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleInfoPanel(announcementPanel, announcementToggle);
+});
+leaderboardToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleInfoPanel(leaderboardPanel, leaderboardToggle);
+});
+changelogToggle.addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleInfoPanel(changelogPanel, changelogToggle);
+});
+document.querySelectorAll(".panel-content").forEach((panelContent) => {
+  panelContent.addEventListener("click", (event) => event.stopPropagation());
+});
 announcementPanel.addEventListener("click", (event) => {
   if (event.target === announcementPanel) {
     closeInfoPanels();

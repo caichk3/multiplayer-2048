@@ -46,6 +46,10 @@ body {
     Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
+body.has-info-panel-open {
+  overflow: hidden;
+}
+
 body::before {
   content: "";
   position: fixed;
@@ -726,13 +730,19 @@ h2 {
 
 .info-panel,
 .leaderboard-panel.info-panel {
+  position: relative;
   padding: 0;
   background: transparent;
   border: 0;
   box-shadow: none;
 }
 
+.info-panel:not(.is-collapsed) {
+  z-index: 100;
+}
+
 .panel-toggle {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -769,11 +779,12 @@ h2 {
   position: fixed;
   left: 50%;
   top: 50%;
-  z-index: 50;
+  z-index: 120;
   display: block;
   width: min(92vw, 720px);
   max-height: min(82vh, 680px);
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 8px;
@@ -791,7 +802,7 @@ h2 {
   content: "";
   position: fixed;
   inset: 0;
-  z-index: 49;
+  z-index: 110;
   background: rgba(24, 33, 42, 0.36);
   backdrop-filter: blur(2px);
 }
