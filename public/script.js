@@ -1835,6 +1835,12 @@ function closeInfoPanelFromButton(button) {
   document.body.classList.remove("has-info-panel-open");
 }
 
+function handleInfoPanelBackdropClick(event) {
+  if (event.target.classList.contains("info-panel")) {
+    closeInfoPanels();
+  }
+}
+
 function renderInfoList(list, entries, emptyTitle, emptyBody) {
   list.innerHTML = "";
 
@@ -6978,23 +6984,15 @@ changelogToggle.addEventListener("click", (event) => {
 document.querySelectorAll(".panel-content").forEach((panelContent) => {
   panelContent.addEventListener("click", (event) => event.stopPropagation());
 });
-announcementPanel.addEventListener("click", (event) => {
-  if (event.target === announcementPanel) {
-    closeInfoPanels();
-  }
-});
-leaderboardPanel.addEventListener("click", (event) => {
-  if (event.target === leaderboardPanel) {
-    closeInfoPanels();
-  }
-});
-changelogPanel.addEventListener("click", (event) => {
-  if (event.target === changelogPanel) {
-    closeInfoPanels();
-  }
-});
+announcementPanel.addEventListener("click", handleInfoPanelBackdropClick);
+leaderboardPanel.addEventListener("click", handleInfoPanelBackdropClick);
+changelogPanel.addEventListener("click", handleInfoPanelBackdropClick);
 panelCloseButtons.forEach((button) => {
-  button.addEventListener("click", () => closeInfoPanelFromButton(button));
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeInfoPanelFromButton(button);
+  });
 });
 restartButton.addEventListener("click", () => start2048Game());
 mineRestartButton.addEventListener("click", () => startMinesweeperGame());
