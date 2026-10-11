@@ -25,6 +25,13 @@
   box-sizing: border-box;
 }
 
+/* hidden 属性兜底：.room-panel / .profile-strip / .active-room 等自己设置了 display，
+   而 [hidden] 与类选择器 specificity 相同、后写的会赢，导致 el.hidden = true 失效。
+   这里统一兜底，让所有 hidden 属性都能真正隐藏元素。 */
+[hidden] {
+  display: none !important;
+}
+
 html {
   width: 100%;
   overflow-x: hidden;
@@ -516,6 +523,24 @@ h2 {
 
 .game-card[data-game="circuitduel"]::before {
   background: linear-gradient(135deg, rgba(217, 79, 91, 0.1), rgba(44, 111, 187, 0.1));
+}
+
+/* 俄罗斯方块图标：一枚 T 形方块，用 box-shadow 复制出另外三格 */
+.game-card[data-game="tetris"]::after {
+  top: 25px;
+  right: 30px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #b579de;
+  box-shadow:
+    -9px 9px 0 0 #9b5cc9,
+    0 9px 0 0 #9b5cc9,
+    9px 9px 0 0 #9b5cc9;
+}
+
+.game-card[data-game="tetris"]::before {
+  background: rgba(155, 92, 201, 0.1);
 }
 
 .game-card.is-active,
