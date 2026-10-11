@@ -311,6 +311,73 @@ app.post("/api/games/flappy/results", requireAuth, (request, response) => {
   });
 });
 
+app.post("/api/games/tetris/results", requireAuth, (request, response) => {
+  const gameId = String(request.body?.gameId || "").trim();
+  const score = clampInteger(request.body?.score, 0, 999999999);
+  const lines = clampInteger(request.body?.lines, 0, 99999);
+  const level = clampInteger(request.body?.level, 1, 999);
+  const seconds = clampInteger(request.body?.seconds, 0, 86400);
+  const user = request.user;
+
+  ensureUserShape(user);
+
+  if (!gameId) {
+    response.status(400).json({ ok: false, message: "缺少本局编号" });
+    return;
+  }
+
+  if (user.settledGames.includes(gameId)) {
+    response.json({
+      ok: true,
+      duplicate: true,
+      award: { points: 0, score, lines, level, seconds },
+      profile: getPublicProfile(user),
+      leaderboard: getGlobalLeaderboard(),
+    });
+    return;
+  }
+
+  const award = calculateTetrisAward({ score, lines, level, seconds });
+  const gameStats = user.stats.games.tetris;
+
+  user.totalPoints += award.points;
+  user.stats.gamesPlayed += 1;
+  user.stats.lastPlayedAt = Date.now();
+  gameStats.plays += 1;
+  gameStats.totalScore += score;
+  gameStats.bestScore = Math.max(gameStats.bestScore, score);
+  gameStats.bestLines = Math.max(gameStats.bestLines, lines);
+  gameStats.bestLevel = Math.max(gameStats.bestLevel, level);
+  gameStats.bestTime =
+    score > 0 && (gameStats.bestTime === 0 || seconds > gameStats.bestTime)
+      ? seconds
+      : gameStats.bestTime;
+  gameStats.lastScore = score;
+  gameStats.lastLines = lines;
+  gameStats.lastPlayedAt = Date.now();
+  user.settledGames.push(gameId);
+  user.settledGames = user.settledGames.slice(-190);
+  user.recentResults.unshift({
+    game: "tetris",
+    score,
+    bestScore: gameStats.bestScore,
+    lines,
+    level,
+    seconds,
+    points: award.points,
+    playedAt: Date.now(),
+  });
+  user.recentResults = user.recentResults.slice(0, 12);
+  saveStore();
+
+  response.json({
+    ok: true,
+    award,
+    profile: getPublicProfile(user),
+    leaderboard: getGlobalLeaderboard(),
+  });
+});
+
 app.post("/api/games/dodge/results", requireAuth, (request, response) => {
   const gameId = String(request.body?.gameId || "").trim();
   const seconds = clampNumber(request.body?.seconds, 0, 86400);
@@ -627,6 +694,17 @@ function createDefaultStats() {
         lastScore: 0,
         lastPlayedAt: null,
       },
+      tetris: {
+        plays: 0,
+        totalScore: 0,
+        bestScore: 0,
+        bestLines: 0,
+        bestLevel: 0,
+        bestTime: 0,
+        lastScore: 0,
+        lastLines: 0,
+        lastPlayedAt: null,
+      },
       dodge: {
         plays: 0,
         totalTime: 0,
@@ -705,6 +783,10 @@ function ensureUserShape(user) {
   user.stats.games.flappy = {
     ...createDefaultStats().games.flappy,
     ...(user.stats.games.flappy || {}),
+  };
+  user.stats.games.tetris = {
+    ...createDefaultStats().games.tetris,
+    ...(user.stats.games.tetris || {}),
   };
   user.stats.games.dodge = {
     ...createDefaultStats().games.dodge,
@@ -844,6 +926,7 @@ function getPublicProfile(user) {
   const game2048 = user.stats.games["2048"];
   const minesweeper3d = user.stats.games.minesweeper3d;
   const flappy = user.stats.games.flappy;
+  const tetris = user.stats.games.tetris;
   const dodge = user.stats.games.dodge;
   const paddleduel = user.stats.games.paddleduel;
   const circuitduel = user.stats.games.circuitduel;
@@ -879,6 +962,14 @@ function getPublicProfile(user) {
         bestScore: flappy.bestScore,
         bestTime: flappy.bestTime,
         lastScore: flappy.lastScore,
+      },
+      tetris: {
+        plays: tetris.plays,
+        totalScore: tetris.totalScore,
+        bestScore: tetris.bestScore,
+        bestLines: tetris.bestLines,
+        bestLevel: tetris.bestLevel,
+        lastScore: tetris.lastScore,
       },
       dodge: {
         plays: dodge.plays,
@@ -1012,6 +1103,25 @@ function calculateFlappyAward({ score, seconds }) {
       overflowRate: 0.3,
     }),
     score,
+    seconds,
+  };
+}
+
+function calculateTetrisAward({ score, lines, level, seconds }) {
+  const scorePoints = Math.floor(score / 70);
+  const linePoints = lines * 20;
+  const levelBonus = Math.max(0, level - 1) * 52;
+  const survivalBonus = Math.min(200, Math.floor(seconds * 1.6));
+
+  return {
+    points: normalizeAwardPoints(scorePoints + linePoints + levelBonus + survivalBonus, {
+      softCap: 1700,
+      max: 3000,
+      overflowRate: 0.3,
+    }),
+    score,
+    lines,
+    level,
     seconds,
   };
 }

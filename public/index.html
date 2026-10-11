@@ -204,6 +204,10 @@
             <span>电路胜场</span>
             <strong id="profile-circuit-wins">0</strong>
           </div>
+          <div>
+            <span>方块最佳</span>
+            <strong id="profile-tetris-best">0</strong>
+          </div>
           <button id="logout-button" class="ghost-button" type="button">退出</button>
         </div>
       </section>
@@ -214,7 +218,7 @@
             <p class="eyebrow">小游戏</p>
             <h2>游戏列表</h2>
           </div>
-          <span id="catalog-count">6 个可玩</span>
+          <span id="catalog-count">7 个可玩</span>
         </div>
 
         <div class="game-catalog">
@@ -242,6 +246,11 @@
             <span class="game-badge">可玩</span>
             <h3>绳结解谜</h3>
             <p>拖动节点 · 解开交叉 · 有限步数</p>
+          </button>
+          <button class="game-card" type="button" data-game="tetris">
+            <span class="game-badge">可玩</span>
+            <h3>俄罗斯方块</h3>
+            <p>七种方块 · 消行升级 · 落点预判</p>
           </button>
           <button class="game-card" type="button" data-game="circuitduel">
             <span class="game-badge">对战</span>
@@ -415,6 +424,78 @@
               height="560"
               aria-label="Flappy 飞鸟游戏画面"
             ></canvas>
+          </div>
+        </section>
+
+        <section class="game-panel game-view is-hidden" id="game-tetris" aria-label="俄罗斯方块">
+          <div class="game-topbar">
+            <div>
+              <p class="eyebrow">Tetris</p>
+              <h2>俄罗斯方块</h2>
+            </div>
+
+            <div class="score-panel tetris-score-panel" aria-label="俄罗斯方块状态">
+              <div class="score-box">
+                <span>分数</span>
+                <strong id="tetris-score">0</strong>
+              </div>
+              <div class="score-box">
+                <span>消行</span>
+                <strong id="tetris-lines">0</strong>
+              </div>
+              <div class="score-box">
+                <span>等级</span>
+                <strong id="tetris-level">1</strong>
+              </div>
+              <div class="score-box">
+                <span>最高</span>
+                <strong id="tetris-best">0</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <p id="tetris-status-text">方向键左右移动，上键旋转，空格直接落下。</p>
+            <button id="tetris-restart-button" type="button">开始</button>
+          </div>
+
+          <div class="tetris-stage-wrap">
+            <canvas
+              id="tetris-canvas"
+              class="tetris-canvas"
+              width="300"
+              height="600"
+              aria-label="俄罗斯方块游戏画面"
+            ></canvas>
+
+            <aside class="tetris-side">
+              <div class="tetris-next-card">
+                <span>下一个</span>
+                <canvas
+                  id="tetris-next-canvas"
+                  class="tetris-next-canvas"
+                  width="120"
+                  height="120"
+                  aria-label="下一个方块预览"
+                ></canvas>
+              </div>
+              <ul class="tetris-keys">
+                <li>← → 移动</li>
+                <li>↑ / X 旋转</li>
+                <li>↓ 加速下落</li>
+                <li>空格 直接落下</li>
+                <li>P 暂停</li>
+              </ul>
+            </aside>
+          </div>
+
+          <div class="tetris-touch-controls">
+            <button type="button" data-tetris-action="left" aria-label="左移">←</button>
+            <button type="button" data-tetris-action="rotate" aria-label="旋转">↻</button>
+            <button type="button" data-tetris-action="right" aria-label="右移">→</button>
+            <button type="button" data-tetris-action="drop" aria-label="直接落下">⤓</button>
+            <button type="button" data-tetris-action="down" aria-label="加速下落">↓</button>
+            <button type="button" data-tetris-action="pause" aria-label="暂停 / 继续">⏸</button>
           </div>
         </section>
 
